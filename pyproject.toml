@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "macro-nowcaster"
+version = "0.1.0"
+description = "Point-in-time, mixed-frequency macro nowcasting system with recession models, GDP nowcast, allocation overlay, and a Fed-text RAG layer."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "scikit-learn>=1.3",
+    "statsmodels>=0.14",
+    "hmmlearn>=0.3",
+    "fredapi>=0.5",
+    "duckdb>=0.10",
+    "pyarrow>=14",
+    "plotly>=5.18",
+    "pyyaml>=6.0",
+    "requests>=2.31",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pydantic>=2.5",
+]
+
+[project.optional-dependencies]
+app = ["streamlit>=1.32"]
+llm = ["anthropic>=0.34"]
+flow = ["prefect>=2.16"]
+dev = ["pytest>=8.0", "ruff>=0.4", "pandera>=0.18"]
+
+[project.scripts]
+mn-build = "macro_nowcaster.pipeline:build_artifact"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

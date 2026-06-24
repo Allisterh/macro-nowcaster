@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environment (huge, never upload)
+.venv/
+venv/
+
+# Generated data (rebuilt by mn-build)
+data/*
+!data/.gitkeep
+
+# Secrets
+.env
+*.key
+
+# Mac / editor cruft
+.DS_Store
+.vscode/
+.ipynb_checkpoints/

@@ -1,0 +1,16 @@
+services:
+  api:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      - FRED_API_KEY=${FRED_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ./data:/app/data
+  app:
+    build: .
+    command: sh -c "pip install streamlit && streamlit run app/streamlit_app.py --server.port 8501 --server.address 0.0.0.0"
+    ports: ["8501:8501"]
+    environment:
+      - MN_API_URL=http://api:8000
+    depends_on: [api]

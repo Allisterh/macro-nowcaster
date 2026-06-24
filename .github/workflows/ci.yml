@@ -1,0 +1,42 @@
+name: CI
+on:
+  push: {branches: [main]}
+  pull_request: {branches: [main]}
+  schedule:
+    - cron: "0 12 * * 1"   # weekly self-refresh build (Mondays 12:00 UTC)
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check src tests
+      - name: Test
+        run: pytest -q
+
+  refresh:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Install
+        run: pip install -e .
+      - name: Rebuild artifact from latest FRED data
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python -m macro_nowcaster.pipeline
+      - name: Commit refreshed artifact
+        run: |
+          git config user.name "nowcast-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add data/ || true
+          git commit -m "chore: weekly artifact refresh" || echo "no changes"
+          git push || echo "nothing to push"

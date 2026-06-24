@@ -1,0 +1,51 @@
+# Indicator universe for the macro nowcaster.
+# transform: yoy | yoy_diff | level     sign: +1 stronger economy, -1 weaker
+# pub_lag_days: typical publication lag, used by the point-in-time replay to
+# decide what was knowable on a given date when ALFRED vintages are unavailable.
+# freq: native FRED frequency (m=monthly, w=weekly, d=daily). q reserved for GDP.
+target_gdp: GDPC1          # Real GDP, quarterly (for the MIDAS / bridge model)
+recession_flag: USREC      # NBER recession indicator, monthly
+
+indicators:
+  # Labor
+  PAYEMS:       {name: Nonfarm Payrolls,        category: Labor,       transform: yoy,      sign: 1,  freq: m, pub_lag_days: 5}
+  UNRATE:       {name: Unemployment Rate,       category: Labor,       transform: yoy_diff, sign: -1, freq: m, pub_lag_days: 5}
+  ICSA:         {name: Initial Jobless Claims,  category: Labor,       transform: yoy,      sign: -1, freq: w, pub_lag_days: 5}
+  CCSA:         {name: Continued Claims,        category: Labor,       transform: yoy,      sign: -1, freq: w, pub_lag_days: 12}
+  AWHMAN:       {name: Weekly Hours Mfg,        category: Labor,       transform: yoy,      sign: 1,  freq: m, pub_lag_days: 5}
+  TEMPHELPS:    {name: Temp Help Services,      category: Labor,       transform: yoy,      sign: 1,  freq: m, pub_lag_days: 5}
+  MANEMP:       {name: Manufacturing Payrolls,  category: Labor,       transform: yoy,      sign: 1,  freq: m, pub_lag_days: 5}
+  JTSJOL:       {name: Job Openings,            category: Labor,       transform: yoy,      sign: 1,  freq: m, pub_lag_days: 40}
+  # Production
+  INDPRO:       {name: Industrial Production,   category: Production,  transform: yoy,      sign: 1,  freq: m, pub_lag_days: 17}
+  IPMAN:        {name: IP Manufacturing,        category: Production,  transform: yoy,      sign: 1,  freq: m, pub_lag_days: 17}
+  TCU:          {name: Capacity Utilization,    category: Production,  transform: level,    sign: 1,  freq: m, pub_lag_days: 17}
+  DGORDER:      {name: Durable Goods Orders,    category: Production,  transform: yoy,      sign: 1,  freq: m, pub_lag_days: 26}
+  NEWORDER:     {name: Core Capex Orders,       category: Production,  transform: yoy,      sign: 1,  freq: m, pub_lag_days: 26}
+  # Consumption and income
+  RSAFS:        {name: Retail Sales,            category: Consumption, transform: yoy,      sign: 1,  freq: m, pub_lag_days: 14}
+  PCEC96:       {name: Real PCE,                category: Consumption, transform: yoy,      sign: 1,  freq: m, pub_lag_days: 28}
+  DSPIC96:      {name: Real Disposable Income,  category: Consumption, transform: yoy,      sign: 1,  freq: m, pub_lag_days: 28}
+  W875RX1:      {name: Real Income ex Transfers,category: Consumption, transform: yoy,      sign: 1,  freq: m, pub_lag_days: 28}
+  CMRMTSPL:     {name: Real Mfg+Trade Sales,    category: Consumption, transform: yoy,      sign: 1,  freq: m, pub_lag_days: 45}
+  UMCSENT:      {name: Consumer Sentiment,      category: Consumption, transform: level,    sign: 1,  freq: m, pub_lag_days: 0}
+  # Housing
+  HOUST:        {name: Housing Starts,          category: Housing,     transform: yoy,      sign: 1,  freq: m, pub_lag_days: 17}
+  PERMIT:       {name: Building Permits,        category: Housing,     transform: yoy,      sign: 1,  freq: m, pub_lag_days: 17}
+  HSN1F:        {name: New Home Sales,          category: Housing,     transform: yoy,      sign: 1,  freq: m, pub_lag_days: 24}
+  TTLCONS:      {name: Construction Spending,   category: Housing,     transform: yoy,      sign: 1,  freq: m, pub_lag_days: 32}
+  # Financial conditions
+  T10Y3M:       {name: Yield Curve 10Y-3M,      category: Financial,   transform: level,    sign: 1,  freq: d, pub_lag_days: 1}
+  T10Y2Y:       {name: Yield Curve 10Y-2Y,      category: Financial,   transform: level,    sign: 1,  freq: d, pub_lag_days: 1}
+  BAA10Y:       {name: Baa Credit Spread,       category: Financial,   transform: level,    sign: -1, freq: d, pub_lag_days: 1}
+  BAMLH0A0HYM2: {name: High Yield OAS,          category: Financial,   transform: level,    sign: -1, freq: d, pub_lag_days: 1}
+  NFCI:         {name: Financial Conditions,    category: Financial,   transform: level,    sign: -1, freq: w, pub_lag_days: 3}
+  STLFSI4:      {name: Financial Stress Index,  category: Financial,   transform: level,    sign: -1, freq: w, pub_lag_days: 3}
+  VIXCLS:       {name: VIX,                     category: Financial,   transform: level,    sign: -1, freq: d, pub_lag_days: 1}
+
+settings:
+  start_date: "1970-01-01"
+  category_order: [Labor, Production, Consumption, Housing, Financial]
+  dfm_factors: 1
+  dfm_factor_order: 2
+  recession_lead_months: 12
