@@ -69,6 +69,13 @@ def pct(values):
 s, series, contrib, drift, snapshot_memo = load()
 dates = pd.to_datetime(series["dates"])
 
+bench_stats = {}
+if SNAPSHOT.exists() and not API:
+    try:
+        bench_stats = json.loads(SNAPSHOT.read_text()).get("benchmark_stats", {}) or {}
+    except Exception:
+        bench_stats = {}
+
 st.title("Macro Nowcasting System")
 st.caption(f"As of {s['as_of']}  |  factor method: {s['factor_method']}  |  "
            f"variance explained: {s['var_explained']:.0%}")
@@ -90,9 +97,16 @@ g.update_layout(height=280, margin=dict(t=50, b=10))
 st.plotly_chart(g, use_container_width=True)
 
 fc = go.Figure()
-fc.add_trace(go.Scatter(x=dates, y=series["composite"], line=dict(color="#2166ac", width=2)))
+fc.add_trace(go.Scatter(x=dates, y=series["composite"], name="My composite",
+                        line=dict(color="#2166ac", width=2)))
+if series.get("cfnai"):
+    fc.add_trace(go.Scatter(x=dates, y=series["cfnai"], name="CFNAI-MA3 (Chicago Fed)",
+                            line=dict(color="#999999", width=1.5, dash="dot")))
 fc.add_hline(y=0, line_dash="dash", line_color="gray")
-fc.update_layout(title="Composite Activity Index", height=300)
+_cfc = bench_stats.get("composite_vs_cfnai_corr")
+fc.update_layout(title="Composite Activity Index"
+                 + (f"  (corr vs CFNAI-MA3: {_cfc})" if _cfc is not None else ""),
+                 height=300, legend=dict(orientation="h", y=1.12))
 st.plotly_chart(fc, use_container_width=True)
 
 fp = go.Figure()
@@ -100,9 +114,39 @@ fp.add_trace(go.Scatter(x=dates, y=pct(series["nowcast_recprob"]),
                         name="Nowcast", line=dict(color="#b2182b", width=2)))
 fp.add_trace(go.Scatter(x=dates, y=pct(series["lead_recprob"]),
                         name="12m ahead", line=dict(color="#ef8a62", width=2, dash="dot")))
+if series.get("recprob_bench"):
+    fp.add_trace(go.Scatter(x=dates, y=series["recprob_bench"],
+                            name="Chauvet-Piger (FRED)",
+                            line=dict(color="#7f7f7f", width=1.5, dash="dot")))
 fp.add_hline(y=50, line_dash="dash", line_color="gray")
-fp.update_layout(title="Recession Probability", yaxis_range=[0, 100], height=320)
+fp.update_layout(title="Recession Probability", yaxis_range=[0, 100], height=320,
+                 legend=dict(orientation="h", y=1.12))
 st.plotly_chart(fp, use_container_width=True)
+
+if bench_stats:
+    st.subheader("Benchmark comparison (vs public gold standards)")
+
+    def _fmt(v, suffix=""):
+        return "n/a" if v is None else f"{v}{suffix}"
+
+    rows = [
+        {"Benchmark": "CFNAI-MA3 (Chicago Fed)",
+         "Comparison": "correlation with my composite",
+         "Value": _fmt(bench_stats.get("composite_vs_cfnai_corr"))},
+        {"Benchmark": "Chauvet-Piger smoothed prob (FRED)",
+         "Comparison": "correlation with my recession prob",
+         "Value": _fmt(bench_stats.get("recprob_vs_chauvetpiger_corr"))},
+        {"Benchmark": "GDPNow (Atlanta Fed)",
+         "Comparison": "latest reading",
+         "Value": _fmt(bench_stats.get("gdpnow_latest"), "%")},
+        {"Benchmark": "GDPNow (Atlanta Fed)",
+         "Comparison": "my GDP nowcast minus GDPNow",
+         "Value": _fmt(bench_stats.get("gdp_nowcast_vs_gdpnow_gap"), " pp")},
+    ]
+    st.table(pd.DataFrame(rows).set_index("Benchmark"))
+    st.caption("My composite is a 29-series dynamic factor model; CFNAI-MA3 is the "
+               "Chicago Fed's 85-series PCA, so moderate correlation is expected. "
+               "Benchmarks are pulled live from FRED at snapshot build time.")
 
 col_a, col_b = st.columns(2)
 with col_a:

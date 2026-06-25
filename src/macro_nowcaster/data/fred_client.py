@@ -14,6 +14,8 @@ Two backends:
 """
 from __future__ import annotations
 
+import os
+
 import datetime as dt
 import logging
 import time
@@ -45,6 +47,8 @@ class FredClient:
         if not self.s.fred_api_key:
             raise RuntimeError("FRED_API_KEY not set; use SyntheticClient instead.")
         self.fred = Fred(api_key=self.s.fred_api_key)
+        self._cache: dict = {}
+        self._vintage_cache: dict = {}
 
     def _retry(self, fn, *args, retries: int = 3, pause: float = 1.0, **kw):
         for attempt in range(1, retries + 1):
@@ -56,30 +60,60 @@ class FredClient:
         return None
 
     def get_series(self, code: str) -> pd.Series | None:
+        if code in self._cache:
+            return self._cache[code]
         s = self._retry(self.fred.get_series, code, observation_start=self.s.start_date)
         if s is None:
             return None
         s = s.dropna()
         s.name = code
-        return s if not s.empty else None
+        result = s if not s.empty else None
+        self._cache[code] = result
+        return result
+
+    def _vintage_history(self, code: str):
+        """Full ALFRED release history for a series, downloaded once and cached."""
+        if code not in self._vintage_cache:
+            df = self._retry(self.fred.get_series_all_releases, code, retries=2)
+            if df is not None and not df.empty:
+                df = df.copy()
+                df["_rt"] = pd.to_datetime(df["realtime_start"], errors="coerce")
+                df["date"] = pd.to_datetime(df["date"], errors="coerce")
+                df["value"] = pd.to_numeric(df["value"], errors="coerce")
+            self._vintage_cache[code] = df
+        return self._vintage_cache[code]
 
     def get_series_as_of(self, code: str, as_of: dt.date) -> pd.Series | None:
-        """Vintage known on ``as_of``. Falls back to a publication-lag proxy."""
-        try:
-            s = self._retry(
-                self.fred.get_series_as_of_date, code, as_of.strftime("%Y-%m-%d")
-            )
-            if s is not None and not s.empty:
-                s = s.set_index("date")["value"].astype(float).dropna()
-                s.name = code
-                return s
-        except Exception as exc:  # noqa: BLE001
-            log.info("no ALFRED vintage for %s (%s); using lag proxy", code, str(exc)[:50])
+        """Vintage known on ``as_of``. Falls back to a publication-lag proxy.
+
+        The full revision history is downloaded once per series and cached, then
+        sliced in memory for each as-of date (taking the latest revision known by
+        that date). Daily/weekly series, anything not in the panel, and any
+        series whose history can't be fetched use the publication-lag proxy.
+        Set MN_NO_VINTAGE=1 to skip ALFRED and run a faster release-lag backtest.
+        """
+        freq = self.s.indicators[code].freq if code in self.s.indicators else "m"
+        use_vintage = freq == "m" and os.environ.get("MN_NO_VINTAGE") != "1"
+        if use_vintage:
+            try:
+                allrel = self._vintage_history(code)
+                if allrel is not None and not allrel.empty:
+                    known = allrel[allrel["_rt"] <= pd.Timestamp(as_of)]
+                    if not known.empty:
+                        s = known.sort_values("_rt").groupby("date")["value"].last().dropna()
+                        s.name = code
+                        if not s.empty:
+                            return s
+            except Exception as exc:  # noqa: BLE001
+                log.info("no ALFRED vintage for %s (%s); using lag proxy", code, str(exc)[:60])
 
         latest = self.get_series(code)
         if latest is None:
             return None
-        lag = pd.Timedelta(days=self.s.indicators[code].pub_lag_days)
+        if code in self.s.indicators:
+            lag = pd.Timedelta(days=self.s.indicators[code].pub_lag_days)
+        else:
+            lag = pd.Timedelta(days=30)  # recession flag / GDP: not in the panel
         cutoff = pd.Timestamp(as_of) - lag
         return latest[latest.index <= cutoff]
 

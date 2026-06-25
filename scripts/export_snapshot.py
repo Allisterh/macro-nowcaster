@@ -16,6 +16,8 @@ import pandas as pd
 
 from macro_nowcaster.pipeline import build_artifact
 from macro_nowcaster.llm.memo_agent import MemoContext, generate_memo
+from macro_nowcaster.data.fred_client import get_client
+from macro_nowcaster.benchmarks import fetch_benchmarks, compare
 
 OUT = Path(__file__).resolve().parents[1] / "app" / "snapshot.json"
 
@@ -37,11 +39,19 @@ def main() -> None:
     s = art.summary()
     comp = art.activity.factor
 
+    bench = fetch_benchmarks(get_client(), comp.index)
+    bench_stats = compare(
+        comp, art.nowcast.prob.reindex(comp.index), s["gdp_nowcast"], bench
+    )
+
     series = {
         "dates": [d.strftime("%Y-%m-%d") for d in comp.index],
         "composite": _clean(comp.values),
         "nowcast_recprob": _clean(art.nowcast.prob.reindex(comp.index).values),
         "lead_recprob": _clean(art.leading.prob.reindex(comp.index).values),
+        "cfnai": _clean(bench["cfnai"].values),
+        "gdpnow": _clean(bench["gdpnow"].values),
+        "recprob_bench": _clean(bench["recprob"].values),
     }
     contrib = {
         "indicator": list(art.contributions.index),
@@ -62,6 +72,7 @@ def main() -> None:
         "series": series,
         "contrib": contrib,
         "drift": drift_records,
+        "benchmark_stats": bench_stats,
         "memo": memo,
         "memo_used_llm": used_llm,
     }

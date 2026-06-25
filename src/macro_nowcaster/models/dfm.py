@@ -63,11 +63,22 @@ def fit_pca_factor(panel_z: pd.DataFrame) -> ActivityFactor:
     return ActivityFactor(factor, loads, var, "pca", means)
 
 
-def fit_dfm_factor(panel_z: pd.DataFrame, factor_order: int = 2) -> ActivityFactor:
-    """Single-factor dynamic factor model via the Kalman filter and EM."""
+def fit_dfm_factor(
+    panel_z: pd.DataFrame, factor_order: int = 2, min_coverage: float = 0.40
+) -> ActivityFactor:
+    """Single-factor dynamic factor model via the Kalman filter and EM.
+
+    Columns with less than ``min_coverage`` non-missing share are excluded from
+    the state-space estimation (a near-empty series like High Yield OAS before
+    1997 is what makes ``DynamicFactorMQ`` fail to converge). Their loadings and
+    contributions are still computed against the fitted factor afterwards, so the
+    dashboard keeps the full indicator list.
+    """
     from statsmodels.tsa.statespace.dynamic_factor_mq import DynamicFactorMQ
 
-    endog = panel_z.copy()
+    coverage = panel_z.notna().mean()
+    keep = coverage[coverage >= min_coverage].index
+    endog = panel_z[keep].copy()
     mod = DynamicFactorMQ(
         endog,
         factors=1,
@@ -75,7 +86,7 @@ def fit_dfm_factor(panel_z: pd.DataFrame, factor_order: int = 2) -> ActivityFact
         idiosyncratic_ar1=True,
         standardize=True,
     )
-    res = mod.fit(disp=False, maxiter=200)
+    res = mod.fit(disp=False, maxiter=500)
     smoothed = res.factors.smoothed
     raw = smoothed.iloc[:, 0]
     factor = _orient_and_standardize(raw, panel_z)
@@ -89,7 +100,7 @@ def fit_activity_factor(panel_z: pd.DataFrame, prefer: str = "dfm") -> ActivityF
         try:
             return fit_dfm_factor(panel_z)
         except Exception as exc:  # noqa: BLE001
-            log.warning("DFM failed (%s); falling back to PCA", str(exc)[:80])
+            log.warning("DFM failed; falling back to PCA. Reason: %s", str(exc)[:200])
     return fit_pca_factor(panel_z)
 
 

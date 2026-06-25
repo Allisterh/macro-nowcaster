@@ -31,16 +31,30 @@ def population_stability_index(
     return float(np.sum((cur_pct - ref_pct) * np.log(cur_pct / ref_pct)))
 
 
-def drift_scan(panel: pd.DataFrame, recent_months: int = 12) -> pd.DataFrame:
-    """PSI per indicator: recent window vs the rest of history."""
+def drift_scan(
+    panel: pd.DataFrame,
+    recent_months: int = 84,
+    bins: int = 8,
+    reference_months: int | None = None,
+) -> pd.DataFrame:
+    """PSI per indicator: a multi-year recent window vs an earlier reference.
+
+    A 12-month window cannot populate 10 bins: a year of autocorrelated data
+    lands in two or three bins and forces PSI into the 6-12 range for any
+    series, so everything alerts. A multi-year window with fewer bins makes the
+    statistic meaningful, so it lights up only on a genuine regime shift.
+    """
     rows = []
     for col in panel.columns:
         s = panel[col].dropna()
-        if len(s) < recent_months * 3:
+        if len(s) < recent_months + bins * 3:
             continue
-        ref, cur = s.iloc[:-recent_months], s.iloc[-recent_months:]
-        psi = population_stability_index(ref, cur)
-        flag = "ALERT" if (psi == psi and psi > 0.25) else ("watch" if psi > 0.1 else "ok")
+        cur = s.iloc[-recent_months:]
+        ref = s.iloc[:-recent_months]
+        if reference_months is not None:
+            ref = ref.iloc[-reference_months:]
+        psi = population_stability_index(ref, cur, bins=bins)
+        flag = "ALERT" if (psi == psi and psi > 1.0) else ("watch" if psi > 0.5 else "ok")
         rows.append({"indicator": col, "psi": psi, "status": flag})
     return pd.DataFrame(rows).sort_values("psi", ascending=False)
 
