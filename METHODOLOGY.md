@@ -17,11 +17,18 @@ not have known, and the backtest is fiction.
 have that month's industrial production; it publishes mid-next-month. A panel that
 assumes every series is available immediately overstates real-time skill.
 
-The fix is point-in-time data. Each observation is stored with a `vintage_date` (when
-it became knowable). The point-in-time store reconstructs the panel "as of" any date
-using only vintages published on or before it. When true ALFRED vintages are not
-available for a series, the client falls back to applying the indicator's typical
-publication lag, which captures the timing trap even if not the revision trap.
+The fix is point-in-time data. For each as-of date the panel is reconstructed using
+only values that were knowable then. For monthly series the full ALFRED revision
+history is downloaded once, cached, and sliced in memory for every as-of date, taking
+the latest revision published on or before that date. Caching the history once rather
+than re-querying it for every step is what makes a multi-decade replay feasible
+without overwhelming the FRED endpoint. Daily and weekly financial series (the yield
+curve, the VIX, credit spreads) are not revised, so they use a publication-lag proxy
+instead: the final series shifted by the indicator's typical release delay. Any series
+whose vintage history cannot be fetched falls back to the same lag proxy, which
+captures the timing trap even if not the revision trap. A timing-only mode (release
+lags for every series) is available via an environment switch for fast iteration when
+the full vintage download is not warranted.
 
 ## 2. Stationarity and standardization
 
@@ -52,9 +59,13 @@ for nowcasting and it matters for three reasons:
 - It supports a principled news decomposition, because the filter gives the
   marginal impact of each new observation on the state.
 
-PCA on mean-imputed data is retained as a fallback and cross-check. If the DFM fails
-to converge in some environment, the system degrades to PCA rather than crashing, and
-it reports which method produced the factor.
+Series with very low coverage over the sample (for example a credit spread that only
+begins in the late 1990s) are excluded from the state-space estimation, since a column
+that is mostly missing destabilizes convergence; their loadings and contributions are
+still computed against the fitted factor afterwards, so the dashboard keeps the full
+indicator list. PCA on mean-imputed data is retained as a fallback and cross-check. If
+the DFM fails to converge in some environment, the system degrades to PCA rather than
+crashing, logs the reason, and reports which method produced the factor.
 
 ## 4. Recession probability
 
@@ -109,7 +120,38 @@ revisions move the signal) and the out-of-sample recession AUC (how well the
 real-time probability anticipates realized recessions). The out-of-sample AUC is
 always lower than the in-sample number, and reporting the lower one is the point.
 
-## 9. From signal to decision
+On the most recent live-FRED run over 1995 to 2026, the replay reports an
+out-of-sample recession AUC near 0.80 against roughly 0.96 in sample, an out-of-sample
+Brier score around 0.086, and a real-time-versus-final composite correlation near
+0.88. The gap between the in-sample and out-of-sample AUC is the honest cost of
+scoring on data the model has not seen; a result with no gap would be the warning
+sign, not a triumph. These figures are regenerated and written to `RESULTS.md` on
+every run, so the documented numbers and the code never drift apart.
+
+## 9. External benchmarks
+
+A homemade index is only credible next to the public versions of the same thing, so
+the dashboard pulls three benchmarks live from FRED at snapshot build time and plots
+them alongside the model's own lines.
+
+The composite activity index is compared to CFNAI-MA3, the Chicago Fed's three-month
+moving average of its National Activity Index. The three-month average is the correct
+comparison because the composite is itself a smoothed latent factor; correlating it
+against raw monthly CFNAI would penalize it for filtering high-frequency noise. The
+current correlation is roughly 0.64. The recession probability is shown next to the
+Chauvet-Piger smoothed recession probabilities (FRED series `RECPROUSM156N`), a
+dynamic-factor Markov-switching model on coincident variables, with a current
+correlation near 0.67. The GDP nowcast is compared to the Atlanta Fed's GDPNow, and
+currently sits within about half a percentage point of it.
+
+These benchmarks are deliberately not tuned to match. The composite is a 29-series
+dynamic factor model and CFNAI-MA3 is an 85-series principal-component index, so a
+moderate rather than near-perfect correlation is the expected and honest result. The
+value of the comparison is not a high number; it is that the comparison bounds how far
+the homemade lines stray from the institutional ones and makes any divergence visible
+rather than hidden.
+
+## 10. From signal to decision
 
 The allocation overlay maps the macro state to an equity weight: a base tilt that
 rises with activity momentum (bounded by a hyperbolic tangent) and falls with
@@ -119,11 +161,20 @@ simple turnover cost against a buy-and-hold benchmark on the same series, using
 annualized return, volatility, Sharpe, and maximum drawdown. The rule is intentionally
 simple; the claim is "the signal can drive a decision," not "this is a tuned strategy."
 
-## 10. Operations
+## 11. Operations
 
 Validation gates reject a malformed panel before it reaches a model and warn on stale
 or low-coverage data. Drift monitoring computes a population stability index per
-indicator and flags distribution shifts. Calibration checks whether predicted
-recession probabilities match realized frequencies. The pipeline produces a single
-artifact that the API serves and the frontend consumes, and a scheduled job rebuilds
-it from the latest data so the dashboard is never stale.
+indicator on the standardized panel, comparing the most recent seven years against the
+earlier history in eight quantile bins. The conventional PSI alert thresholds of 0.1
+and 0.25 are calibrated for short-horizon monitoring of a model's inputs against a
+frozen training sample; this monitor instead asks whether a multi-year window differs
+from fifty years of macro history, where broad secular drift is expected and is not a
+model failure, so the thresholds are raised to a watch at 0.5 and an alert at 1.0.
+Calibrated this way the monitor stays quiet on series near their historical norms and
+flags the genuinely dislocated ones, such as the inverted-then-normalizing yield
+curve, capacity utilization, and financial conditions, rather than lighting up every
+row. Calibration checks whether predicted recession probabilities match realized
+frequencies. The pipeline produces a single artifact that the API serves and the
+frontend consumes, and a scheduled job rebuilds the public snapshot from the latest
+FRED data each day so the dashboard is never stale.
