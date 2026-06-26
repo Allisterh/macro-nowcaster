@@ -5003,6 +5003,14 @@
     "gdpnow_latest": 2.54,
     "gdp_nowcast_vs_gdpnow_gap": 0.44
   },
-  "memo": "**MACRO RESEARCH MEMO**\n**Multi-Asset Strategy | As of 30 June 2026**\n\n---\n\n**Current Conditions**\n\nThe activity factor stands at +0.07 standard deviations, consistent with a modest but intact expansion. The GDP nowcast of +3.0% annualized reinforces this reading, and near-term recession risk remains negligible at 3%. The 12-month forward recession probability of 10% is similarly benign, suggesting the cycle has meaningful runway.\n\n**Balance of Risks**\n\nThe expansion is being sustained primarily through credit and business investment channels. Tightening in High Yield OAS and Baa spreads alongside firm Core Capex Orders signals continued corporate confidence and manageable financing conditions. However, the drag signals warrant monitoring: softness in Consumer Sentiment, Real Income ex Transfers, and Durable Goods Orders points to emerging household-sector fragility. If the consumption engine weakens further without offset from business investment, the activity factor could drift lower in coming quarters.\n\n**Positioning Implication**\n\nThe overall risk backdrop remains constructive, but the household-sector drags argue against adding cyclical consumer exposure aggressively. The team should favor credit and capex-linked industrials over consumer discretionary, capitalizing on the corporate tailwinds while maintaining discipline on positions most sensitive to a consumption slowdown.",
+  "performance": {
+    "oos_auc": 0.802,
+    "is_auc": 0.958,
+    "brier": 0.086,
+    "rt_final_corr": 0.88,
+    "window": "1995-01-01 to 2026-06-25"
+  },
+  "generated_at": "2026-06-26 23:26 UTC",
+  "memo": "**MACRO RESEARCH MEMO**\n**Multi-Asset Strategy | June 30, 2026**\n\n---\n\n**Current State**\n\nThe macro backdrop remains constructive. The activity factor stands at +0.07 standard deviations, consistent with a mild expansion, supported by a GDP nowcast of +3.0% annualized. Near-term recession risk is negligible at 3%, and the 12-month forward probability of 10% suggests the cycle still has meaningful runway.\n\n**Balance of Risks**\n\nThe tailwinds are concentrated in credit and capital formation. Tightening High Yield OAS, compressed Baa spreads, and firm Core Capex Orders collectively signal that corporate balance sheets remain healthy and business investment intentions are intact. However, the drag signals warrant monitoring. Softness in Consumer Sentiment, Real Income ex Transfers, and Durable Goods Orders points to emerging pressure on household-driven demand \u2014 a combination that could erode the consumption base if sustained.\n\n**Positioning Implication**\n\nThe risk/reward favors maintaining a modest pro-risk tilt, but the consumer-side weakness argues against aggressive overweights in cyclical consumer sectors. Within equities, a preference for business investment beneficiaries \u2014 industrials and capital goods \u2014 over consumer discretionary would better align with where the underlying data strength currently resides.",
   "memo_used_llm": true
 }

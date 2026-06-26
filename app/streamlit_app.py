@@ -69,21 +69,87 @@ def pct(values):
 s, series, contrib, drift, snapshot_memo = load()
 dates = pd.to_datetime(series["dates"])
 
-bench_stats = {}
+bench_stats, perf, generated_at = {}, {}, None
 if SNAPSHOT.exists() and not API:
     try:
-        bench_stats = json.loads(SNAPSHOT.read_text()).get("benchmark_stats", {}) or {}
+        _snap = json.loads(SNAPSHOT.read_text())
+        bench_stats = _snap.get("benchmark_stats", {}) or {}
+        perf = _snap.get("performance", {}) or {}
+        generated_at = _snap.get("generated_at")
     except Exception:
-        bench_stats = {}
+        pass
 
 st.title("Macro Nowcasting System")
 st.caption(f"As of {s['as_of']}  |  factor method: {s['factor_method']}  |  "
            f"variance explained: {s['var_explained']:.0%}")
 
+st.markdown(
+    "Official GDP prints four to eight weeks after a quarter closes. This system reads "
+    "higher-frequency data (payrolls, jobless claims, the yield curve, credit spreads) to "
+    "estimate current-quarter conditions in real time, the same class of problem the Atlanta "
+    "Fed's GDPNow and the Chicago Fed's CFNAI are built to solve."
+)
+
 c1, c2, c3 = st.columns([1, 1, 1])
 c1.metric("Composite activity", f"{s['composite']:+.2f} sd", s["regime"])
 c2.metric("Recession prob (now)", f"{s['nowcast_recprob']:.0%}")
 c3.metric("GDP nowcast", f"{s['gdp_nowcast']:+.1f}%", f"+/- {s.get('gdp_nowcast_std', 0):.1f}")
+
+if perf:
+    st.markdown("**Model performance - out-of-sample backtest**")
+    p1, p2, p3 = st.columns(3)
+    p1.metric("Recession AUC (OOS)", perf.get("oos_auc", "n/a"))
+    p1.caption("0.50 is a coin flip; this separates recession from expansion months well.")
+    p2.metric("Brier score (OOS)", perf.get("brier", "n/a"))
+    p2.caption("Mean squared probability error; lower is better, 0 is perfect.")
+    p3.metric("Real-time vs final", perf.get("rt_final_corr", "n/a"))
+    p3.caption(f"Live signal vs revised data. Backtest window: {perf.get('window', 'n/a')}.")
+
+_alerts = sum(1 for r in drift if str(r.get("status")) == "ALERT")
+st.info(
+    f"Data drift: {_alerts} of {len(drift)} indicators show distributional drift "
+    f"(PSI above the 1.0 alert threshold) versus their long history. PSI = Population "
+    f"Stability Index, a model-monitoring signal that flags when live data diverges from "
+    f"the distribution the model was calibrated on. A persistently elevated count reflects "
+    f"genuine post-2020 macro shifts, not a broken model; a sudden jump would be the real "
+    f"early warning."
+)
+
+if generated_at:
+    st.caption(
+        f"Data as of {s['as_of']}  ·  snapshot built {generated_at}  ·  "
+        f"refreshes daily via GitHub Actions."
+    )
+
+with st.expander("Methodology & model details"):
+    st.markdown(
+        "- **No look-ahead bias.** The backtest reconstructs each month using only data that "
+        "had published by then: true ALFRED vintages for revised monthly series, and a "
+        "publication-lag proxy for non-revised daily series.\n"
+        "- **Composite.** A single common factor from a mixed-frequency dynamic factor model "
+        "(statsmodels DynamicFactorMQ, Kalman filter and EM), with a PCA fallback if the DFM "
+        "fails to converge. It explains about 41% of the variance across 29 indicators, which "
+        "is typical for one factor on a broad macro panel.\n"
+        "- **Mixed frequencies.** Daily series (yield curve, VIX, spreads), weekly claims, and "
+        "monthly activity series are aligned to month-end; the Kalman filter handles the ragged "
+        "edge where the most recent months have not all reported.\n"
+        "- **Recession probability.** A coincident probit on the factor and the yield curve, "
+        "plus a separate 12-month-ahead probit on the 10y-3m spread.\n"
+        "- **Benchmarks.** Pulled live from FRED and compared to CFNAI-MA3, GDPNow, and the "
+        "Chauvet-Piger model. Full write-up in METHODOLOGY.md in the repo."
+    )
+
+with st.expander("Limitations - what this model is not"):
+    st.markdown(
+        "- It is a **coincident, short-horizon nowcast**, not a structural or long-range "
+        "forecasting model.\n"
+        "- The panel is **29 series**, far smaller than CFNAI's 85, so it diverges from the "
+        "official index and is noisier.\n"
+        "- A real-time recession call is **noisier than a single point estimate suggests**; "
+        "the probability path matters more than any one month's number.\n"
+        "- The GDP nowcast carries a **wide uncertainty band**; treat it as a direction-and-"
+        "magnitude read, not a precise figure."
+    )
 
 g = go.Figure(go.Indicator(
     mode="gauge+number", value=s["nowcast_recprob"] * 100, number={"suffix": "%"},
@@ -106,7 +172,8 @@ fc.add_hline(y=0, line_dash="dash", line_color="gray")
 _cfc = bench_stats.get("composite_vs_cfnai_corr")
 fc.update_layout(title="Composite Activity Index"
                  + (f"  (corr vs CFNAI-MA3: {_cfc})" if _cfc is not None else ""),
-                 height=300, legend=dict(orientation="h", y=1.12))
+                 height=300, legend=dict(orientation="h", y=1.12),
+                 yaxis_title="standard deviations")
 st.plotly_chart(fc, use_container_width=True)
 
 fp = go.Figure()

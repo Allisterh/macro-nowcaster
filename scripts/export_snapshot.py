@@ -9,7 +9,9 @@ network call at visit time, so a free host stays fast and reliable.
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -32,6 +34,30 @@ def _clean(values):
         except (TypeError, ValueError):
             out.append(None)
     return out
+
+
+def _read_performance() -> dict:
+    """Pull the headline backtest numbers out of RESULTS.md so the dashboard can
+    show them without re-running the slow replay."""
+    p = Path(__file__).resolve().parents[1] / "RESULTS.md"
+    if not p.exists():
+        return {}
+    txt = p.read_text()
+
+    def grab(label):
+        m = re.search(rf"{re.escape(label)}\s*:\s*([0-9.]+)", txt)
+        return round(float(m.group(1)), 3) if m else None
+
+    out = {
+        "oos_auc": grab("out-of-sample recession AUC"),
+        "is_auc": grab("in-sample recession AUC"),
+        "brier": grab("OOS Brier score"),
+        "rt_final_corr": grab("real-time vs final corr"),
+    }
+    wm = re.search(r"replay window:\s*(\S+)\s+to\s+(\S+)", txt)
+    if wm:
+        out["window"] = f"{wm.group(1)} to {wm.group(2)}"
+    return {k: v for k, v in out.items() if v is not None}
 
 
 def main() -> None:
@@ -73,6 +99,8 @@ def main() -> None:
         "contrib": contrib,
         "drift": drift_records,
         "benchmark_stats": bench_stats,
+        "performance": _read_performance(),
+        "generated_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "memo": memo,
         "memo_used_llm": used_llm,
     }
