@@ -1,5 +1,7 @@
 # Macro Nowcasting System
 
+[![CI](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/ci.yml/badge.svg)](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/ci.yml)  ·  [**Live dashboard**](https://felaris-macro-nowcaster.streamlit.app)
+
 A point-in-time, mixed-frequency macroeconomic nowcasting platform. It aggregates
 30+ FRED indicators into a composite activity index using a dynamic factor model,
 nowcasts GDP, tracks recession probability (coincident and 12-month-ahead), labels

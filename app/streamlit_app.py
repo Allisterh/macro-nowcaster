@@ -215,12 +215,49 @@ if bench_stats:
                "Chicago Fed's 85-series PCA, so moderate correlation is expected. "
                "Benchmarks are pulled live from FRED at snapshot build time.")
 
+if series.get("cfnai"):
+    _bc = pd.DataFrame(
+        {"composite": series["composite"], "cfnai": series["cfnai"]}, index=dates
+    ).apply(pd.to_numeric, errors="coerce")
+
+    st.markdown("**Does it track recently?**  Composite vs CFNAI-MA3, last 24 months")
+    _recent = _bc.tail(24)
+    fr = go.Figure()
+    fr.add_trace(go.Scatter(x=_recent.index, y=_recent["composite"], name="My composite",
+                            line=dict(color="#2166ac", width=2)))
+    fr.add_trace(go.Scatter(x=_recent.index, y=_recent["cfnai"],
+                            name="CFNAI-MA3 (Chicago Fed)",
+                            line=dict(color="#999999", width=2, dash="dot")))
+    fr.add_hline(y=0, line_dash="dash", line_color="gray")
+    fr.update_layout(height=280, yaxis_title="standard deviations",
+                     legend=dict(orientation="h", y=1.15), margin=dict(t=30))
+    st.plotly_chart(fr, use_container_width=True)
+
+    st.markdown("**Stable relationship, or one crisis?**  Rolling 36-month correlation")
+    _roll = _bc["composite"].rolling(36).corr(_bc["cfnai"])
+    frc = go.Figure()
+    frc.add_trace(go.Scatter(x=dates, y=_roll, name="36m rolling corr",
+                             line=dict(color="#1b7837", width=2)))
+    _full = bench_stats.get("composite_vs_cfnai_corr")
+    if _full is not None:
+        frc.add_hline(y=_full, line_dash="dash", line_color="gray",
+                      annotation_text=f"full-sample {_full}", annotation_position="top left")
+    frc.update_layout(height=260, yaxis_range=[-1, 1], yaxis_title="correlation",
+                      margin=dict(t=30))
+    st.plotly_chart(frc, use_container_width=True)
+    st.caption("A stable band above zero means the composite tracks CFNAI-MA3 across "
+               "regimes, not only during one recession.")
+
 col_a, col_b = st.columns(2)
 with col_a:
     cdf = pd.DataFrame(contrib)
     fb = go.Figure(go.Bar(x=cdf["contribution"], y=cdf["indicator"], orientation="h",
-                          marker_color=["#1b7837" if v >= 0 else "#b2182b" for v in cdf["contribution"]]))
-    fb.update_layout(title="Indicator Contributions", height=520)
+                          marker_color=["#1b7837" if v >= 0 else "#b2182b" for v in cdf["contribution"]],
+                          text=[f"{v:+.2f}" for v in cdf["contribution"]],
+                          textposition="outside", cliponaxis=False, textfont=dict(size=10)))
+    fb.update_layout(title="Indicator Contributions", height=520,
+                     xaxis_title="share of latest move",
+                     uniformtext=dict(mode="show", minsize=8))
     st.plotly_chart(fb, use_container_width=True)
 with col_b:
     st.subheader("Data drift monitor")
