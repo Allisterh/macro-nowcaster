@@ -45,7 +45,7 @@ def health():
         "status": "ok",
         "has_artifact": art is not None,
         "as_of": art.as_of if art else None,
-        "server_time": dt.datetime.utcnow().isoformat(),
+        "server_time": dt.datetime.now(dt.timezone.utc).isoformat(),
     }
 
 
@@ -101,5 +101,5 @@ def refresh():
     try:
         art = build_artifact()
         return {"status": "rebuilt", "as_of": art.as_of}
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)[:200]) from exc

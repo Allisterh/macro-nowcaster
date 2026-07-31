@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from macro_nowcaster.backtest.allocation import run_backtest, target_weight
 from macro_nowcaster.config import get_settings
 from macro_nowcaster.data.fred_client import SyntheticClient
 from macro_nowcaster.data.store import PointInTimeStore
@@ -20,7 +21,6 @@ from macro_nowcaster.models.dfm import contributions, fit_pca_factor
 from macro_nowcaster.models.midas import BridgeGDP, MidasGDP
 from macro_nowcaster.models.recession import fit_leading, fit_nowcast
 from macro_nowcaster.models.regime import fit_regimes, news_decomposition
-from macro_nowcaster.backtest.allocation import run_backtest, target_weight
 from macro_nowcaster.monitoring.drift import population_stability_index
 
 

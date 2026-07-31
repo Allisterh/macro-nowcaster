@@ -38,7 +38,7 @@ class BridgeGDP:
     def __init__(self) -> None:
         self.res = None
 
-    def fit(self, factor: pd.Series, gdp: pd.Series) -> "BridgeGDP":
+    def fit(self, factor: pd.Series, gdp: pd.Series) -> BridgeGDP:
         fq = factor.groupby(_quarter_index(factor.index)).mean()
         g = gdp.copy()
         g.index = _quarter_index(g.index)
@@ -77,7 +77,7 @@ class MidasGDP:
         wide.columns = [f"m{c}" for c in wide.columns]
         return wide
 
-    def fit(self, factor: pd.Series, gdp: pd.Series) -> "MidasGDP":
+    def fit(self, factor: pd.Series, gdp: pd.Series) -> MidasGDP:
         X = self._monthly_matrix(factor)
         g = gdp.copy()
         g.index = _quarter_index(g.index)

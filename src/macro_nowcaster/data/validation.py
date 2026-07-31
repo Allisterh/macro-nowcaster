@@ -52,7 +52,7 @@ def check_freshness(panel: pd.DataFrame, max_staleness_days: int = 75) -> None:
     last = panel.dropna(how="all").index.max()
     if pd.isna(last):
         raise DataQualityError("panel has no non-empty rows")
-    age = (pd.Timestamp(dt.date.today()) - pd.Timestamp(last)).days
+    age = (pd.Timestamp(dt.datetime.now(dt.timezone.utc).date()) - pd.Timestamp(last)).days
     if age > max_staleness_days:
         warnings.warn(
             f"panel is stale: last observation {last.date()} is {age} days old",

@@ -54,7 +54,7 @@ def drift_scan(
         if reference_months is not None:
             ref = ref.iloc[-reference_months:]
         psi = population_stability_index(ref, cur, bins=bins)
-        flag = "ALERT" if (psi == psi and psi > 1.0) else ("watch" if psi > 0.5 else "ok")
+        flag = "ALERT" if (pd.notna(psi) and psi > 1.0) else ("watch" if psi > 0.5 else "ok")
         rows.append({"indicator": col, "psi": psi, "status": flag})
     return pd.DataFrame(rows).sort_values("psi", ascending=False)
 

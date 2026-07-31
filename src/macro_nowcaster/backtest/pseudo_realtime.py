@@ -21,8 +21,8 @@ import pandas as pd
 from ..config import Settings
 from ..features.transforms import standardized_panel
 from ..models.dfm import fit_pca_factor
-from ..models.recession import fit_nowcast
 from ..models.recession import _score as score_clf
+from ..models.recession import fit_nowcast
 
 log = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def replay(
     with a delay, so the real-time recession model is trained on labels lagged by
     this amount to avoid using knowledge that did not yet exist.
     """
-    end = end or dt.date.today().isoformat()
+    end = end or dt.datetime.now(dt.timezone.utc).date().isoformat()
     dates = pd.date_range(start, end, freq="ME")
     records = []
     for asof in dates:
@@ -61,7 +61,7 @@ def replay(
             usrec_m = usrec.resample("ME").mean()
             usrec_m = (usrec_m > 0.5).astype(int).shift(0)
             usrec_lagged = usrec_m.iloc[: max(0, len(usrec_m) - recognition_lag_months)]
-            slope = z["T10Y3M"] if "T10Y3M" in z else None
+            slope = z.get("T10Y3M")
             try:
                 rm = fit_nowcast(af.factor, slope, usrec_lagged)
                 prob_now = float(rm.prob.iloc[-1])
@@ -81,7 +81,7 @@ def evaluate(realtime: pd.DataFrame, final_factor: pd.Series, final_usrec: pd.Se
     rev_mae = float((joined["rt_composite"] - joined["final_composite"]).abs().mean())
 
     out = {
-        "n_periods": int(len(joined)),
+        "n_periods": len(joined),
         "composite_realtime_vs_final_corr": rev_corr,
         "composite_revision_mae": rev_mae,
     }

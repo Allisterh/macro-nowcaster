@@ -74,9 +74,11 @@ class FedRAG:
         key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         if not key:
             return (
-                "[LLM stub: set ANTHROPIC_API_KEY to generate the divergence "
-                "analysis. Retrieval ran and the most relevant Fed excerpts are "
-                "attached for manual comparison.]",
+                (
+                    "[LLM stub: set ANTHROPIC_API_KEY to generate the divergence "
+                    "analysis. Retrieval ran and the most relevant Fed excerpts are "
+                    "attached for manual comparison.]"
+                ),
                 False,
             )
         try:

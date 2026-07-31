@@ -78,7 +78,7 @@ def build_artifact(settings: Settings | None = None, persist: bool = True) -> Ar
     # 3. Recession models.
     usrec = client.get_series(settings.recession_flag).resample("ME").mean()
     usrec = (usrec > 0.5).astype(int)
-    slope = feat["T10Y3M"] if "T10Y3M" in feat else None
+    slope = feat.get("T10Y3M")
     nowcast = fit_nowcast(af.factor, slope, usrec)
     leading = fit_leading(slope, usrec, settings.recession_lead_months) if slope is not None else nowcast
 

@@ -14,10 +14,9 @@ Two backends:
 """
 from __future__ import annotations
 
-import os
-
 import datetime as dt
 import logging
+import os
 import time
 from typing import Protocol
 
@@ -134,7 +133,7 @@ class SyntheticClient:
         self._build()
 
     def _build(self) -> None:
-        idx = pd.date_range(self.s.start_date, dt.date.today(), freq="ME")
+        idx = pd.date_range(self.s.start_date, dt.datetime.now(dt.timezone.utc).date(), freq="ME")
         n = len(idx)
         t = np.linspace(0, 22 * np.pi, n)
         cycle = (
