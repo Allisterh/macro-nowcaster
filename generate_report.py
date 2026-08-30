@@ -84,6 +84,26 @@ def _read_performance() -> dict:
         return {}
 
 
+def _data_through(client, settings) -> str | None:
+    """Date of the most recent actual observation anywhere in the panel.
+
+    ``Artifact.as_of`` is the last row of the monthly panel, which is a month-end
+    stamp: as soon as one daily series prints in the current month, that row
+    exists and the stamp jumps to a month end that has not happened yet. For a
+    "data through" label we want the last date something was really published.
+    """
+    dates = []
+    for code in settings.codes:
+        try:
+            s = client.get_series(code)
+        except Exception as exc:  # noqa: BLE001
+            log.info("no series for %s (%s)", code, str(exc)[:60])
+            continue
+        if s is not None and not s.dropna().empty:
+            dates.append(s.dropna().index[-1])
+    return str(max(dates).date()) if dates else None
+
+
 def _gdp_growth(client, settings) -> pd.Series | None:
     """Realized GDP as annualized q/q growth (same convention as the pipeline)."""
     g = client.get_series(settings.target_gdp)
@@ -200,7 +220,7 @@ def chart_activity(factor: pd.Series, cfnai: pd.Series | None, bands: list[dict]
             hovertemplate="%{y:+.2f}<extra></extra>"))
     fig.add_hline(y=0, line_dash="dash", line_color=MUTED, line_width=1)
     fig.update_layout(shapes=bands)
-    _end_label(fig, factor, "{:+.2f}")
+    _end_label(fig, factor, "{:+.3f}" if abs(float(factor.dropna().iloc[-1])) < 0.01 else "{:+.2f}")
     return _write(_style(fig, "Composite activity index",
                          "standard deviations from trend"), "chart_activity.html")
 
@@ -248,7 +268,7 @@ def main() -> None:
     source = "fred" if isinstance(client, FredClient) else "synthetic"
     log.info("data source: %s", source)
 
-    art = build_artifact(settings=settings, persist=False)
+    art = build_artifact(settings=settings, persist=False, client=client)
     s = art.summary()
     comp = art.activity.factor
 
@@ -273,8 +293,9 @@ def main() -> None:
         "recession_prob": s["nowcast_recprob"],
         "recession_prob_12m": s["lead_recprob"],
         "updated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "as_of": s["as_of"],
-        "composite": s["composite"],
+        "as_of": _data_through(client, settings) or s["as_of"],
+        "panel_month": s["as_of"],  # month-end the monthly panel runs to
+        "composite": round(float(comp.iloc[-1]), 4),
         "regime": s["regime"],
         "factor_method": s["factor_method"],
         "var_explained": s["var_explained"],
@@ -292,7 +313,13 @@ def main() -> None:
         },
     }
     (DOCS / "latest.json").write_text(json.dumps(payload, indent=2) + "\n")
-    log.info("wrote latest.json (as of %s, source %s)", s["as_of"], source)
+    log.info("wrote latest.json (data through %s, panel month %s, source %s)",
+             payload["as_of"], payload["panel_month"], source)
+    log.info("composite raw=%r rounded=%r | gdp raw=%r | recprob raw=%r",
+             float(comp.iloc[-1]), payload["composite"],
+             float(art.gdp_midas.point), float(art.nowcast.prob.iloc[-1]))
+    log.info("panel tail (last 3 months, non-missing indicators per month):\n%s",
+             art.z_panel.notna().sum(axis=1).tail(3).to_string())
     print(json.dumps({k: payload[k] for k in
                       ("gdp_nowcast", "recession_prob", "updated", "data_source")}, indent=2))
 

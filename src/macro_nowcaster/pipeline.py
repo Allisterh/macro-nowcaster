@@ -59,9 +59,13 @@ class Artifact:
         }
 
 
-def build_artifact(settings: Settings | None = None, persist: bool = True) -> Artifact:
+def build_artifact(
+    settings: Settings | None = None,
+    persist: bool = True,
+    client: object | None = None,
+) -> Artifact:
     settings = settings or get_settings()
-    client = get_client(settings)
+    client = client or get_client(settings)
 
     # 1. Collect current-vintage data and validate.
     raw = {c: client.get_series(c) for c in settings.codes}
