@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Macro Nowcasting System</title>
+<meta name="description" content="Live GDP nowcast and recession probability from a point-in-time, mixed-frequency dynamic factor model over 29 FRED indicators.">
+<style>
+  :root {
+    color-scheme: light;
+    --surface: #ffffff;
+    --page: #f7f7f5;
+    --ink: #1b1b1a;
+    --ink-2: #4a4945;
+    --muted: #6f6e69;
+    --line: #e5e4e0;
+    --blue: #2a78d6;
+    --orange: #eb6834;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 40px 20px 64px; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 28px; }
+  h1 { font-size: 28px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.02em; }
+  h2 { font-size: 17px; margin: 40px 0 12px; letter-spacing: -0.01em; }
+  p { margin: 0 0 14px; color: var(--ink-2); }
+  a { color: var(--blue); }
+  .sub { color: var(--muted); font-size: 14px; margin: 0; }
+  .stamp { font-variant-numeric: tabular-nums; }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 4px 0 20px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 18px 16px;
+  }
+  .card .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .card .value {
+    font-size: 34px; line-height: 1.1; margin-top: 10px; letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+  .card .note { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .card.primary .value { color: var(--blue); }
+  .card.warm .value { color: var(--orange); }
+
+  figure { margin: 0 0 26px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  iframe { display: block; width: 100%; height: 380px; border: 0; }
+  figcaption { font-size: 13px; color: var(--muted); padding: 0 16px 14px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--surface);
+          border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  tr:last-child td { border-bottom: 0; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; padding: 0; list-style: none; }
+  .chip { font-size: 13px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+  .chip.up { border-color: #cfe3f8; color: #1c5cab; }
+  .chip.down { border-color: #f7d6c7; color: #a8431c; }
+  .chip-label { font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+
+  .notice { background: #fff6ed; border: 1px solid #f7d6c7; color: #7a3d18;
+            border-radius: var(--radius); padding: 12px 14px; font-size: 14px; margin-bottom: 20px; }
+  footer { margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+  footer a { color: var(--blue); }
+  .skeleton { color: var(--muted); }
+
+  @media (max-width: 640px) {
+    .wrap { padding: 28px 16px 48px; }
+    h1 { font-size: 23px; }
+    .cards { grid-template-columns: 1fr; }
+    .card .value { font-size: 30px; }
+    iframe { height: 340px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Macro Nowcasting System</h1>
+    <p class="sub">
+      Current-quarter US GDP growth and recession probability, estimated from 29 FRED
+      indicators with a mixed-frequency dynamic factor model.
+      Rebuilt every weekday by GitHub Actions.
+    </p>
+  </header>
+
+  <div id="notice"></div>
+
+  <div class="cards">
+    <div class="card primary">
+      <div class="label">GDP nowcast</div>
+      <div class="value" id="gdp">–</div>
+      <div class="note" id="gdp-note">annualized q/q growth, current quarter</div>
+    </div>
+    <div class="card warm">
+      <div class="label">Recession probability</div>
+      <div class="value" id="rec">–</div>
+      <div class="note" id="rec-note">coincident, this month</div>
+    </div>
+    <div class="card">
+      <div class="label">Activity index</div>
+      <div class="value" id="comp">–</div>
+      <div class="note" id="comp-note">standard deviations from trend</div>
+    </div>
+  </div>
+
+  <p class="sub stamp" id="updated">Loading the latest run…</p>
+
+  <p style="margin-top:18px">
+    Official GDP prints four to eight weeks after a quarter closes. This system reads
+    higher-frequency data — payrolls, jobless claims, the yield curve, credit spreads —
+    to estimate current-quarter conditions in real time, the same class of problem the
+    Atlanta Fed's GDPNow and the Chicago Fed's CFNAI are built to solve. Every historical
+    estimate uses only data that had actually published at that point in time.
+  </p>
+
+  <h2>Composite activity index</h2>
+  <figure>
+    <iframe id="chart-activity" src="chart_activity.html" title="Composite activity index" loading="lazy"></iframe>
+    <figcaption>
+      One common factor extracted from 29 indicators by a Kalman-filtered dynamic factor
+      model, compared with the Chicago Fed's 85-series CFNAI-MA3. Above zero is
+      above-trend growth.
+    </figcaption>
+  </figure>
+
+  <h2>GDP nowcast history</h2>
+  <figure>
+    <iframe id="chart-gdp" src="chart_gdp.html" title="GDP nowcast history" loading="lazy"></iframe>
+    <figcaption>
+      The model's quarterly nowcast (MIDAS regression on the within-quarter factor path)
+      against realized GDP growth. The final point is the current, still-incomplete quarter.
+    </figcaption>
+  </figure>
+
+  <h2>Recession probability</h2>
+  <figure>
+    <iframe id="chart-recession" src="chart_recession.html" title="Recession probability" loading="lazy"></iframe>
+    <figcaption>
+      A coincident probit on the activity factor and the yield curve, plus a separate
+      12-month-ahead probit on the 10y–3m spread. Shaded bands are NBER recessions.
+    </figcaption>
+  </figure>
+
+  <h2>What is driving the latest reading</h2>
+  <p class="chip-label">Tailwinds</p>
+  <ul class="chips" id="tailwinds"></ul>
+  <p class="chip-label" style="margin-top:14px">Drags</p>
+  <ul class="chips" id="drags"></ul>
+
+  <h2>Accuracy and benchmarks</h2>
+  <table>
+    <thead><tr><th>Measure</th><th class="num">Value</th></tr></thead>
+    <tbody id="stats"><tr><td class="skeleton">Loading…</td><td class="num"></td></tr></tbody>
+  </table>
+  <p class="sub" style="margin-top:10px">
+    Out-of-sample figures come from a pseudo-real-time replay that rebuilds the nowcast
+    month by month from data vintages, so they are the honest numbers rather than the
+    in-sample ones. Benchmarks are pulled live from FRED on each run.
+  </p>
+
+  <footer>
+    <p>
+      <strong>Built by Owen Felaris.</strong> Finance and entrepreneurship co-major at Miami
+      University's Farmer School of Business, Class of 2028. Data sourcing and point-in-time
+      vintage handling, the mixed-frequency dynamic factor model, the out-of-sample backtest,
+      and the benchmarking against the Chicago and Atlanta Fed indices are all my own work.
+    </p>
+    <p>
+      <a href="https://www.linkedin.com/in/owenfelaris/">LinkedIn</a> ·
+      <a href="https://github.com/felariop-jpg">GitHub</a> ·
+      <a href="https://github.com/felariop-jpg/macro-nowcaster">Source code</a> ·
+      <a href="https://github.com/felariop-jpg/macro-nowcaster/blob/main/METHODOLOGY.md">Methodology</a>
+    </p>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const pct = (v) => (v === null || v === undefined) ? "n/a" : (v * 100).toFixed(0) + "%";
+  const num = (v, d = 2) => (v === null || v === undefined) ? "n/a" : v.toFixed(d);
+
+  function chips(el, names, cls) {
+    el.innerHTML = "";
+    (names || []).forEach((n) => {
+      const li = document.createElement("li");
+      li.className = "chip " + cls;
+      li.textContent = n;
+      el.appendChild(li);
+    });
+  }
+
+  function render(d) {
+    $("gdp").textContent = (d.gdp_nowcast >= 0 ? "+" : "") + num(d.gdp_nowcast, 1) + "%";
+    $("gdp-note").textContent = "annualized q/q · ± " + num(d.gdp_nowcast_std, 1) + " pp";
+    $("rec").textContent = pct(d.recession_prob);
+    $("rec-note").textContent = "right now · " + pct(d.recession_prob_12m) + " within 12 months";
+    $("comp").textContent = (d.composite >= 0 ? "+" : "") + num(d.composite, 2);
+    $("comp-note").textContent = "sd from trend · regime: " + (d.regime || "n/a");
+
+    const asOf = new Date(d.as_of + "T00:00:00Z").toLocaleDateString(undefined,
+      { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+    const run = new Date(d.updated).toLocaleString(undefined,
+      { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+    $("updated").textContent = "Data through " + asOf + " · last rebuilt " + run + " UTC";
+
+    chips($("tailwinds"), d.top_tailwinds, "up");
+    chips($("drags"), d.top_drags, "down");
+
+    const p = d.performance || {}, b = d.benchmarks || {};
+    const rows = [
+      ["Recession AUC, out of sample", p.oos_auc, ""],
+      ["Brier score, out of sample", p.brier, ""],
+      ["Real-time vs final-data correlation", p.rt_final_corr, ""],
+      ["Correlation with CFNAI-MA3", b.composite_vs_cfnai_corr, ""],
+      ["Correlation with Chauvet-Piger recession probability", b.recprob_vs_chauvetpiger_corr, ""],
+      ["Atlanta Fed GDPNow, latest", b.gdpnow_latest, "%"],
+      ["This nowcast minus GDPNow", b.gdp_nowcast_vs_gdpnow_gap, " pp"],
+    ].filter((r) => r[1] !== null && r[1] !== undefined);
+    if (p.window) rows.push(["Backtest replay window", p.window, ""]);
+
+    $("stats").innerHTML = rows.map((r) =>
+      "<tr><td>" + r[0] + "</td><td class='num'>" +
+      (typeof r[1] === "number" ? r[1].toFixed(r[2] === "" ? 3 : 2) : r[1]) + r[2] +
+      "</td></tr>").join("");
+
+    if (d.data_source !== "fred") {
+      $("notice").innerHTML =
+        "<div class='notice'>This build ran without a FRED key, so the numbers below come " +
+        "from the project's deterministic synthetic business cycle, not the live US economy. " +
+        "The next scheduled run with the key restores live data.</div>";
+    }
+  }
+
+  fetch("latest.json?t=" + Date.now())
+    .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(render)
+    .catch(() => {
+      $("updated").textContent = "Could not load latest.json — the next scheduled run will republish it.";
+    });
+})();
+</script>
+</body>
+</html>

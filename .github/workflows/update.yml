@@ -1,0 +1,44 @@
+name: Update Pages site
+
+on:
+  schedule:
+    - cron: "0 12 * * 1-5"   # weekdays, 12:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-pages
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run the nowcast and rebuild docs/
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python generate_report.py
+
+      - name: Commit and push docs/ if anything changed
+        run: |
+          git config user.name "nowcast-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add docs
+          if git diff --cached --quiet; then
+            echo "no changes to publish"
+          else
+            git commit -m "chore: refresh nowcast site $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+          fi

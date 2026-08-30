@@ -1,6 +1,14 @@
 # Macro Nowcasting System
 
-[![CI](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/ci.yml/badge.svg)](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/ci.yml)  ·  [**Live dashboard**](https://felaris-macro-nowcaster.streamlit.app)
+## [**Live dashboard -> felariop-jpg.github.io/macro-nowcaster**](https://felariop-jpg.github.io/macro-nowcaster/)
+
+A static page served by GitHub Pages: the current-quarter GDP nowcast and recession
+probability load instantly, with no server and no cold start. GitHub Actions re-runs
+the whole model every weekday at 12:00 UTC against the latest FRED vintage and
+commits the refreshed page.
+
+[![CI](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/ci.yml/badge.svg)](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/ci.yml)
+[![Update site](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/update.yml/badge.svg)](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/update.yml)  ·  [Streamlit version](https://felaris-macro-nowcaster.streamlit.app) (fuller dashboard, slower to wake)
 
 A point-in-time, mixed-frequency macroeconomic nowcasting platform. It aggregates
 30+ FRED indicators into a composite activity index using a dynamic factor model,
@@ -78,7 +86,9 @@ src/macro_nowcaster/
   monitoring/          drift (PSI), calibration
   pipeline.py          orchestration -> artifact
   api/main.py          FastAPI service
-app/streamlit_app.py   frontend (consumes the API, or runs locally)
+generate_report.py     builds the static site -> docs/ (what GitHub Pages serves)
+docs/                  index.html + latest.json + chart HTML, published by Pages
+app/streamlit_app.py   Streamlit frontend (consumes the API, or runs locally)
 tests/                 unit tests for every core module
 flows/                 scheduled refresh
 ```
@@ -98,6 +108,10 @@ uvicorn macro_nowcaster.api.main:app --reload --port 8000
 
 # 3. Run the dashboard against the API
 MN_API_URL=http://localhost:8000 streamlit run app/streamlit_app.py
+
+# 4. Rebuild the static Pages site into docs/ (what the live demo serves)
+python generate_report.py
+open docs/index.html
 
 # Tests and lint
 pytest -q
@@ -130,6 +144,25 @@ Honesty is part of the engineering here.
   ALFRED vintages when available and falls back to a publication-lag proxy.
 - **Needs `ANTHROPIC_API_KEY`:** the written Fed-divergence analysis and the
   research memo. Without it these return clean, structured stubs so nothing breaks.
+
+---
+
+## How the live page stays live
+
+`generate_report.py` runs the whole pipeline end to end - current FRED vintage,
+dynamic factor model, recession probits, GDP nowcast - and writes plain static
+files into `docs/`:
+
+| File | Contents |
+|------|----------|
+| `docs/latest.json` | `gdp_nowcast`, `recession_prob`, the UTC `updated` stamp, benchmarks and backtest stats |
+| `docs/chart_*.html` | interactive Plotly charts (plotly.js from a CDN, so the files stay small) |
+| `docs/index.html` | single-file landing page that fetches `latest.json` and embeds the charts |
+
+`.github/workflows/update.yml` runs it weekdays at 12:00 UTC (and on demand via
+*Run workflow*), reads the FRED key from the `FRED_API_KEY` repository secret, and
+commits `docs/` only when something changed. Nothing is rendered at visit time, so
+the page is as fast as a static file - because it is one.
 
 ---
 
