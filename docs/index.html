@@ -27,13 +27,37 @@
     -webkit-font-smoothing: antialiased;
   }
   .wrap { max-width: 880px; margin: 0 auto; padding: 40px 20px 64px; }
-  header { border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 28px; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 18px; margin-bottom: 24px; }
   h1 { font-size: 28px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.02em; }
   h2 { font-size: 17px; margin: 40px 0 12px; letter-spacing: -0.01em; }
   p { margin: 0 0 14px; color: var(--ink-2); }
   a { color: var(--blue); }
   .sub { color: var(--muted); font-size: 14px; margin: 0; }
   .stamp { font-variant-numeric: tabular-nums; }
+
+  /* attribution: deliberately quiet, so it never competes with the numbers */
+  .byline { font-size: 12.5px; line-height: 1.5; color: var(--muted); margin: 14px 0 0; }
+  .byline strong { font-weight: 600; color: var(--ink-2); }
+  .byline a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+  .byline a:hover { color: var(--blue); }
+  .byline .links { display: block; margin-top: 5px; }
+
+  /* plain-English switch */
+  .langrow { display: flex; align-items: center; gap: 9px; margin-top: 16px; flex-wrap: wrap; }
+  .switch {
+    appearance: none; border: 1px solid var(--line); background: #eceae5;
+    width: 40px; height: 22px; border-radius: 999px; padding: 2px; cursor: pointer;
+    display: inline-flex; align-items: center; transition: background .15s ease, border-color .15s ease;
+    flex: none;
+  }
+  .switch .knob {
+    width: 16px; height: 16px; border-radius: 50%; background: var(--surface);
+    box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s ease;
+  }
+  .switch[aria-checked="true"] { background: var(--blue); border-color: var(--blue); }
+  .switch[aria-checked="true"] .knob { transform: translateX(18px); }
+  .switch:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .langrow label { font-size: 13.5px; color: var(--muted); cursor: pointer; }
 
   .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 4px 0 20px; }
   .card {
@@ -68,9 +92,13 @@
 
   .notice { background: #fff6ed; border: 1px solid #f7d6c7; color: #7a3d18;
             border-radius: var(--radius); padding: 12px 14px; font-size: 14px; margin-bottom: 20px; }
-  footer { margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
-  footer a { color: var(--blue); }
+  footer { margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--line); }
+  footer .byline { font-size: 13px; margin-top: 0; }
   .skeleton { color: var(--muted); }
+
+  /* language switching: both versions are in the page, only one is displayed */
+  body:not(.plain) [data-lang="simple"] { display: none !important; }
+  body.plain [data-lang="tech"] { display: none !important; }
 
   @media (max-width: 640px) {
     .wrap { padding: 28px 16px 48px; }
@@ -86,28 +114,52 @@
 
   <header>
     <h1>Macro Nowcasting System</h1>
-    <p class="sub">
+    <p class="sub" data-lang="tech">
       Current-quarter US GDP growth and recession probability, estimated from 29 FRED
       indicators with a mixed-frequency dynamic factor model.
       Rebuilt every weekday by GitHub Actions.
     </p>
+    <p class="sub" data-lang="simple">
+      How the US economy is doing right now: its growth rate and the odds of a recession,
+      read from 29 fast-moving data sources instead of waiting for the official numbers.
+      Rebuilt automatically every weekday.
+    </p>
+
+    <p class="byline">
+      <strong>Built by Owen Felaris.</strong> Finance and entrepreneurship co-major at Miami
+      University's Farmer School of Business, Class of 2028. Data sourcing and point-in-time
+      vintage handling, the mixed-frequency dynamic factor model, the out-of-sample backtest,
+      and the benchmarking against the Chicago and Atlanta Fed indices are all my own work.
+      <span class="links">
+        <a href="https://www.linkedin.com/in/owenfelaris/">LinkedIn</a> ·
+        <a href="https://github.com/felariop-jpg">GitHub</a> ·
+        <a href="https://github.com/felariop-jpg/macro-nowcaster">Source code</a> ·
+        <a href="https://github.com/felariop-jpg/macro-nowcaster/blob/main/METHODOLOGY.md">Methodology</a>
+      </span>
+    </p>
+
+    <div class="langrow">
+      <button type="button" class="switch" id="lang" role="switch" aria-checked="false"
+              aria-labelledby="lang-label"><span class="knob"></span></button>
+      <label id="lang-label" for="lang">Simple explanations: plain language, no finance jargon</label>
+    </div>
   </header>
 
   <div id="notice"></div>
 
   <div class="cards">
     <div class="card primary">
-      <div class="label">GDP nowcast</div>
+      <div class="label"><span data-lang="tech">GDP nowcast</span><span data-lang="simple">Estimated economic growth</span></div>
       <div class="value" id="gdp">–</div>
       <div class="note" id="gdp-note">annualized q/q growth, current quarter</div>
     </div>
     <div class="card warm">
-      <div class="label">Recession probability</div>
+      <div class="label"><span data-lang="tech">Recession probability</span><span data-lang="simple">Chance of recession now</span></div>
       <div class="value" id="rec">–</div>
       <div class="note" id="rec-note">coincident, this month</div>
     </div>
     <div class="card">
-      <div class="label">Activity index</div>
+      <div class="label"><span data-lang="tech">Activity index</span><span data-lang="simple">Economic health score</span></div>
       <div class="value" id="comp">–</div>
       <div class="note" id="comp-note">standard deviations from trend</div>
     </div>
@@ -115,71 +167,103 @@
 
   <p class="sub stamp" id="updated">Loading the latest run…</p>
 
-  <p style="margin-top:18px">
+  <p style="margin-top:18px" data-lang="tech">
     Official GDP prints four to eight weeks after a quarter closes. This system reads
-    higher-frequency data — payrolls, jobless claims, the yield curve, credit spreads —
+    higher-frequency data (payrolls, jobless claims, the yield curve, credit spreads)
     to estimate current-quarter conditions in real time, the same class of problem the
     Atlanta Fed's GDPNow and the Chicago Fed's CFNAI are built to solve. Every historical
     estimate uses only data that had actually published at that point in time.
   </p>
+  <p style="margin-top:18px" data-lang="simple">
+    Official economic growth numbers (GDP) come out weeks after each quarter ends. This
+    tool reads faster-moving data, like hiring, jobless claims, and interest rates, to
+    estimate how the economy is doing right now instead of waiting. Every historical
+    estimate only uses data that was actually available at that point in time, the same
+    way an investor living through it would have seen it.
+  </p>
 
-  <h2>Composite activity index</h2>
+  <h2><span data-lang="tech">Composite activity index</span><span data-lang="simple">Economic health over time</span></h2>
   <figure>
     <iframe id="chart-activity" src="chart_activity.html" title="Composite activity index" loading="lazy"></iframe>
-    <figcaption>
+    <figcaption data-lang="tech">
       One common factor extracted from 29 indicators by a Kalman-filtered dynamic factor
       model, compared with the Chicago Fed's 85-series CFNAI-MA3. Above zero is
       above-trend growth.
     </figcaption>
+    <figcaption data-lang="simple">
+      One overall score blended from 29 economic indicators (jobs, spending, credit and
+      more), next to the Chicago Fed's own official index. Above zero means the economy is
+      growing faster than its normal pace, below zero means slower.
+    </figcaption>
   </figure>
 
-  <h2>GDP nowcast history</h2>
+  <h2><span data-lang="tech">GDP nowcast history</span><span data-lang="simple">Estimated growth vs what actually happened</span></h2>
   <figure>
     <iframe id="chart-gdp" src="chart_gdp.html" title="GDP nowcast history" loading="lazy"></iframe>
-    <figcaption>
+    <figcaption data-lang="tech">
       The model's quarterly nowcast (MIDAS regression on the within-quarter factor path)
       against realized GDP growth. The final point is the current, still-incomplete quarter.
     </figcaption>
-  </figure>
-
-  <h2>Recession probability</h2>
-  <figure>
-    <iframe id="chart-recession" src="chart_recession.html" title="Recession probability" loading="lazy"></iframe>
-    <figcaption>
-      A coincident probit on the activity factor and the yield curve, plus a separate
-      12-month-ahead probit on the 10y–3m spread. Shaded bands are NBER recessions.
+    <figcaption data-lang="simple">
+      The tool's estimate for each quarter (blue line) against the growth that was actually
+      reported later (orange bars). The last point is the quarter we are in now, which has
+      not finished yet.
     </figcaption>
   </figure>
 
-  <h2>What is driving the latest reading</h2>
-  <p class="chip-label">Tailwinds</p>
+  <h2><span data-lang="tech">Recession probability</span><span data-lang="simple">Chance of a recession</span></h2>
+  <figure>
+    <iframe id="chart-recession" src="chart_recession.html" title="Recession probability" loading="lazy"></iframe>
+    <figcaption data-lang="tech">
+      A coincident probit on the activity factor and the yield curve, plus a separate
+      12-month-ahead probit on the 10y–3m spread. Shaded bands are NBER recessions.
+    </figcaption>
+    <figcaption data-lang="simple">
+      The estimated chance that a recession is happening right now, plus a separate
+      estimate for the next 12 months based on interest rates. The shaded bands are the
+      recessions the US actually had.
+    </figcaption>
+  </figure>
+
+  <h2><span data-lang="tech">What is driving the latest reading</span><span data-lang="simple">What is pushing the score up or down</span></h2>
+  <p class="chip-label"><span data-lang="tech">Tailwinds</span><span data-lang="simple">Helping</span></p>
   <ul class="chips" id="tailwinds"></ul>
-  <p class="chip-label" style="margin-top:14px">Drags</p>
+  <p class="chip-label" style="margin-top:14px"><span data-lang="tech">Drags</span><span data-lang="simple">Hurting</span></p>
   <ul class="chips" id="drags"></ul>
 
-  <h2>Accuracy and benchmarks</h2>
+  <h2><span data-lang="tech">Accuracy and benchmarks</span><span data-lang="simple">How accurate has this been?</span></h2>
   <table>
-    <thead><tr><th>Measure</th><th class="num">Value</th></tr></thead>
+    <thead><tr>
+      <th><span data-lang="tech">Measure</span><span data-lang="simple">What was checked</span></th>
+      <th class="num">Value</th>
+    </tr></thead>
     <tbody id="stats"><tr><td class="skeleton">Loading…</td><td class="num"></td></tr></tbody>
   </table>
-  <p class="sub" style="margin-top:10px">
+  <p class="sub" style="margin-top:10px" data-lang="tech">
     Out-of-sample figures come from a pseudo-real-time replay that rebuilds the nowcast
     month by month from data vintages, so they are the honest numbers rather than the
     in-sample ones. Benchmarks are pulled live from FRED on each run.
   </p>
+  <p class="sub" style="margin-top:10px" data-lang="simple">
+    These scores come from re-running the tool month by month through history, each time
+    showing it only the data that existed back then, and checking it against what actually
+    happened. The comparisons to well-known Federal Reserve indexes are pulled fresh on
+    every run, so it is held to a real standard rather than graded on its own curve.
+  </p>
 
   <footer>
-    <p>
+    <p class="byline">
       <strong>Built by Owen Felaris.</strong> Finance and entrepreneurship co-major at Miami
       University's Farmer School of Business, Class of 2028. Data sourcing and point-in-time
       vintage handling, the mixed-frequency dynamic factor model, the out-of-sample backtest,
       and the benchmarking against the Chicago and Atlanta Fed indices are all my own work.
-    </p>
-    <p>
-      <a href="https://www.linkedin.com/in/owenfelaris/">LinkedIn</a> ·
-      <a href="https://github.com/felariop-jpg">GitHub</a> ·
-      <a href="https://github.com/felariop-jpg/macro-nowcaster">Source code</a> ·
-      <a href="https://github.com/felariop-jpg/macro-nowcaster/blob/main/METHODOLOGY.md">Methodology</a>
+      Open to finance and consulting internships.
+      <span class="links">
+        <a href="https://www.linkedin.com/in/owenfelaris/">LinkedIn</a> ·
+        <a href="https://github.com/felariop-jpg">GitHub</a> ·
+        <a href="https://github.com/felariop-jpg/macro-nowcaster">Source code</a> ·
+        <a href="https://github.com/felariop-jpg/macro-nowcaster/blob/main/METHODOLOGY.md">Methodology</a>
+      </span>
     </p>
   </footer>
 
@@ -190,6 +274,55 @@
   const $ = (id) => document.getElementById(id);
   const pct = (v) => (v === null || v === undefined) ? "n/a" : (v * 100).toFixed(0) + "%";
   const num = (v, d = 2) => (v === null || v === undefined) ? "n/a" : v.toFixed(d);
+
+  // Plain-English mode lives in this variable only - nothing is persisted.
+  let plain = false;
+  let data = null;
+
+  // Row labels for the accuracy table, technical and plain.
+  const STATS = [
+    ["oos_auc",  "perf",  "Recession AUC, out of sample",
+     "Accuracy score: telling recessions from normal times (0.50 is a coin flip)", ""],
+    ["brier", "perf", "Brier score, out of sample",
+     "Error score: how far off the predictions were (0 would be perfect)", ""],
+    ["rt_final_corr", "perf", "Real-time vs final-data correlation",
+     "Consistency: the live estimate vs the number once the data is finalized", ""],
+    ["composite_vs_cfnai_corr", "bench", "Correlation with CFNAI-MA3",
+     "How closely the score matches the Chicago Fed's index", ""],
+    ["recprob_vs_chauvetpiger_corr", "bench", "Correlation with Chauvet-Piger recession probability",
+     "How closely the recession odds match the Fed's own model", ""],
+    ["gdpnow_latest", "bench", "Atlanta Fed GDPNow, latest",
+     "The Atlanta Fed's official estimate, latest reading", "%"],
+    ["gdp_nowcast_vs_gdpnow_gap", "bench", "This nowcast minus GDPNow",
+     "This tool's estimate minus the official one", " pp"],
+    ["window", "perf", "Backtest replay window", "Tested over", ""],
+  ];
+
+  // In-chart text. The charts are same-origin iframes, so their titles, axis and
+  // series names are relabelled in place with Plotly - no rebuild, no second copy
+  // of each chart file. Keyed by the technical name each trace was generated with.
+  const CHARTS = {
+    "chart-activity": {
+      title: ["Composite activity index", "Economic health over time"],
+      y: ["standard deviations from trend", "above 0 = growing, below 0 = shrinking"],
+    },
+    "chart-gdp": {
+      title: ["GDP nowcast history vs realized growth", "Estimated growth vs what actually happened"],
+      y: ["annualized q/q %", "growth rate, % per year"],
+    },
+    "chart-recession": {
+      title: ["Recession probability (shaded: NBER recessions)", "Chance of a recession (shaded: past recessions)"],
+      y: ["probability, %", "chance, %"],
+    },
+  };
+  const TRACE_NAMES = {
+    "Composite activity index": "This tool's score",
+    "CFNAI-MA3 (Chicago Fed)": "Chicago Fed's official index",
+    "Realized GDP growth": "What actually happened",
+    "Model nowcast": "This tool's estimate",
+    "Recession now": "Right now",
+    "Recession within 12 months": "In 12 months",
+  };
 
   function chips(el, names, cls) {
     el.innerHTML = "";
@@ -203,32 +336,34 @@
 
   function render(d) {
     $("gdp").textContent = (d.gdp_nowcast >= 0 ? "+" : "") + num(d.gdp_nowcast, 1) + "%";
-    $("gdp-note").textContent = "annualized q/q · ± " + num(d.gdp_nowcast_std, 1) + " pp";
+    $("gdp-note").textContent = plain
+      ? "growth pace this quarter · give or take " + num(d.gdp_nowcast_std, 1)
+      : "annualized q/q · ± " + num(d.gdp_nowcast_std, 1) + " pp";
     $("rec").textContent = pct(d.recession_prob);
-    $("rec-note").textContent = "right now · " + pct(d.recession_prob_12m) + " within 12 months";
+    $("rec-note").textContent = plain
+      ? "right now · " + pct(d.recession_prob_12m) + " chance within 12 months"
+      : "right now · " + pct(d.recession_prob_12m) + " within 12 months";
     $("comp").textContent = (d.composite >= 0 ? "+" : "") + num(d.composite, 2);
-    $("comp-note").textContent = "sd from trend · regime: " + (d.regime || "n/a");
+    $("comp-note").textContent = plain
+      ? "above 0 = growing, below 0 = shrinking · " + (d.regime || "n/a")
+      : "sd from trend · regime: " + (d.regime || "n/a");
 
     const asOf = new Date(d.as_of + "T00:00:00Z").toLocaleDateString(undefined,
       { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
     const run = new Date(d.updated).toLocaleString(undefined,
       { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
-    $("updated").textContent = "Data through " + asOf + " · last rebuilt " + run + " UTC";
+    $("updated").textContent = plain
+      ? "Latest data: " + asOf + " · page rebuilt " + run + " UTC"
+      : "Data through " + asOf + " · last rebuilt " + run + " UTC";
 
     chips($("tailwinds"), d.top_tailwinds, "up");
     chips($("drags"), d.top_drags, "down");
 
-    const p = d.performance || {}, b = d.benchmarks || {};
-    const rows = [
-      ["Recession AUC, out of sample", p.oos_auc, ""],
-      ["Brier score, out of sample", p.brier, ""],
-      ["Real-time vs final-data correlation", p.rt_final_corr, ""],
-      ["Correlation with CFNAI-MA3", b.composite_vs_cfnai_corr, ""],
-      ["Correlation with Chauvet-Piger recession probability", b.recprob_vs_chauvetpiger_corr, ""],
-      ["Atlanta Fed GDPNow, latest", b.gdpnow_latest, "%"],
-      ["This nowcast minus GDPNow", b.gdp_nowcast_vs_gdpnow_gap, " pp"],
-    ].filter((r) => r[1] !== null && r[1] !== undefined);
-    if (p.window) rows.push(["Backtest replay window", p.window, ""]);
+    const src = { perf: d.performance || {}, bench: d.benchmarks || {} };
+    const rows = STATS
+      .map(([key, group, techLabel, plainLabel, suffix]) => [
+        plain ? plainLabel : techLabel, src[group][key], suffix])
+      .filter((r) => r[1] !== null && r[1] !== undefined);
 
     $("stats").innerHTML = rows.map((r) =>
       "<tr><td>" + r[0] + "</td><td class='num'>" +
@@ -236,18 +371,57 @@
       "</td></tr>").join("");
 
     if (d.data_source !== "fred") {
-      $("notice").innerHTML =
-        "<div class='notice'>This build ran without a FRED key, so the numbers below come " +
-        "from the project's deterministic synthetic business cycle, not the live US economy. " +
-        "The next scheduled run with the key restores live data.</div>";
+      $("notice").innerHTML = "<div class='notice'>" + (plain
+        ? "This build ran without a data key, so the numbers below come from a made-up " +
+          "practice economy rather than the real one. The next scheduled run restores live data."
+        : "This build ran without a FRED key, so the numbers below come from the project's " +
+          "deterministic synthetic business cycle, not the live US economy. The next scheduled " +
+          "run with the key restores live data.") + "</div>";
+    } else {
+      $("notice").innerHTML = "";
     }
   }
 
+  // Relabel one chart inside its iframe. Silently does nothing if the frame has
+  // not loaded or plotly.js did not arrive, leaving the generated labels in place.
+  function applyChart(id) {
+    const frame = $(id), spec = CHARTS[id];
+    let win;
+    try { win = frame.contentWindow; } catch (e) { return; }
+    if (!win || !win.Plotly || !win.document) return;
+    const gd = win.document.querySelector(".plotly-graph-div");
+    if (!gd || !gd.data) return;
+    if (!frame._names) frame._names = gd.data.map((t) => t.name || "");
+    const names = frame._names.map((n) => (plain && TRACE_NAMES[n]) ? TRACE_NAMES[n] : n);
+    const i = plain ? 1 : 0;
+    try {
+      win.Plotly.relayout(gd, { "title.text": spec.title[i], "yaxis.title.text": spec.y[i] });
+      win.Plotly.restyle(gd, { name: names }, names.map((_, k) => k));
+    } catch (e) { /* chart keeps its generated labels */ }
+  }
+
+  const applyCharts = () => Object.keys(CHARTS).forEach(applyChart);
+
+  function setPlain(next) {
+    plain = next;
+    document.body.classList.toggle("plain", plain);
+    $("lang").setAttribute("aria-checked", String(plain));
+    if (data) render(data);
+    applyCharts();
+  }
+
+  $("lang").addEventListener("click", () => setPlain(!plain));
+  Object.keys(CHARTS).forEach((id) => {
+    // Frames are lazy: relabel each one as it finishes loading, in whatever mode
+    // is active at the time.
+    $(id).addEventListener("load", () => applyChart(id));
+  });
+
   fetch("latest.json?t=" + Date.now())
     .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(render)
+    .then((d) => { data = d; render(d); })
     .catch(() => {
-      $("updated").textContent = "Could not load latest.json — the next scheduled run will republish it.";
+      $("updated").textContent = "Could not load latest.json. The next scheduled run will republish it.";
     });
 })();
 </script>
