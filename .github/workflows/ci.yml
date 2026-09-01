@@ -2,8 +2,6 @@ name: CI
 on:
   push: {branches: [main]}
   pull_request: {branches: [main]}
-  schedule:
-    - cron: "0 11 * * *"   # daily public-snapshot refresh, 11:00 UTC
 
 jobs:
   test:
@@ -18,28 +16,3 @@ jobs:
         run: ruff check src tests
       - name: Test
         run: pytest -q
-
-  refresh:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule'
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: {python-version: "3.11"}
-      - name: Install
-        run: pip install -e .
-      - name: Regenerate public snapshot from latest FRED data
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: python scripts/export_snapshot.py
-      - name: Commit refreshed snapshot
-        run: |
-          git config user.name "nowcast-bot"
-          git config user.email "bot@users.noreply.github.com"
-          git add app/snapshot.json
-          git commit -m "chore: daily snapshot refresh" || echo "no changes"
-          git push || echo "nothing to push"

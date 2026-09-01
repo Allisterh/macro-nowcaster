@@ -4,8 +4,8 @@
 
 A static page served by GitHub Pages: the current-quarter GDP nowcast and recession
 probability load instantly, with no server and no cold start. GitHub Actions re-runs
-the whole model every weekday at 12:00 UTC against the latest FRED vintage and
-commits the refreshed page.
+the whole model daily at 12:17 UTC against the latest FRED vintage and commits
+the refreshed page.
 
 [![CI](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/ci.yml/badge.svg)](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/ci.yml)
 [![Update site](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/update.yml/badge.svg)](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/update.yml)  ·  [Streamlit version](https://felaris-macro-nowcaster.streamlit.app) (fuller dashboard, slower to wake)
@@ -159,10 +159,14 @@ files into `docs/`:
 | `docs/chart_*.html` | interactive Plotly charts (plotly.js from a CDN, so the files stay small) |
 | `docs/index.html` | single-file landing page that fetches `latest.json` and embeds the charts |
 
-`.github/workflows/update.yml` runs it weekdays at 12:00 UTC (and on demand via
+`.github/workflows/update.yml` runs it daily at 12:17 UTC (and on demand via
 *Run workflow*), reads the FRED key from the `FRED_API_KEY` repository secret, and
 commits `docs/` only when something changed. Nothing is rendered at visit time, so
 the page is as fast as a static file - because it is one.
+
+`app/snapshot.json` is a frozen artifact of the retired Streamlit app: nothing
+auto-refreshes it any more, so treat its numbers as stale. `scripts/export_snapshot.py`
+still regenerates it by hand if you ever want it current.
 
 ---
 
