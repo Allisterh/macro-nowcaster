@@ -7,8 +7,11 @@ We then compare the real-time nowcast to the final-vintage estimate (revision
 cost) and score the real-time recession probability against what actually
 happened (honest out-of-sample AUC).
 
-The factor here uses PCA rather than the DFM purely for speed across hundreds of
-refits; swapping in the DFM is a cost-vs-fidelity choice, not a correctness one.
+The factor defaults to PCA for speed across hundreds of refits, but ``factor="dfm"``
+replays the estimator the live site actually ships (roughly two seconds per month
+against milliseconds for PCA). A DFM refit that fails to converge falls back to PCA
+for that month and is counted, so the report can say how much of the replay really
+was the DFM.
 """
 from __future__ import annotations
 
@@ -20,7 +23,7 @@ import pandas as pd
 
 from ..config import Settings
 from ..features.transforms import standardized_panel
-from ..models.dfm import fit_pca_factor
+from ..models.dfm import fit_activity_factor, fit_pca_factor
 from ..models.recession import _score as score_clf
 from ..models.recession import fit_nowcast
 
@@ -33,12 +36,16 @@ def replay(
     start: str = "1995-01-01",
     end: str | None = None,
     recognition_lag_months: int = 4,
+    factor: str = "pca",
 ) -> pd.DataFrame:
     """Generate the real-time nowcast at each month-end in the window.
 
     ``recognition_lag_months`` reflects that recession status is only confirmed
     with a delay, so the real-time recession model is trained on labels lagged by
     this amount to avoid using knowledge that did not yet exist.
+
+    ``factor`` selects the estimator: ``"pca"`` (fast) or ``"dfm"`` (what the live
+    pipeline runs, with a per-month PCA fallback on non-convergence).
     """
     end = end or dt.datetime.now(dt.timezone.utc).date().isoformat()
     dates = pd.date_range(start, end, freq="ME")
@@ -52,7 +59,7 @@ def replay(
         z = z.dropna(how="all")
         if len(z) < 48:
             continue
-        af = fit_pca_factor(z)
+        af = fit_activity_factor(z, prefer="dfm") if factor == "dfm" else fit_pca_factor(z)
         composite_now = float(af.factor.iloc[-1])
 
         usrec = client.get_series_as_of(settings.recession_flag, asof.date())
@@ -73,6 +80,7 @@ def replay(
             {
                 "asof": asof,
                 "pred_month": af.factor.index[-1],  # month the nowcast describes
+                "factor_method": af.method,  # "dfm", or "pca" where the DFM fell back
                 "rt_composite": composite_now,
                 "rt_recprob": prob_now,
             }

@@ -135,8 +135,9 @@
     <p class="byline">
       <strong>Built by Owen Felaris.</strong> Finance and entrepreneurship co-major at Miami
       University's Farmer School of Business, Class of 2028. Data sourcing and point-in-time
-      vintage handling, the mixed-frequency dynamic factor model, the out-of-sample backtest,
-      and the benchmarking against the Chicago and Atlanta Fed indices are all my own work.
+      vintage handling, the monthly dynamic factor model over a ragged-edge panel, the
+      out-of-sample backtest, and the benchmarking against the Chicago and Atlanta Fed
+      indices are all my own work.
       <span class="links">
         <a href="https://www.linkedin.com/in/owenfelaris/">LinkedIn</a> ·
         <a href="https://github.com/felariop-jpg">GitHub</a> ·
@@ -287,8 +288,9 @@
     <p class="byline">
       <strong>Built by Owen Felaris.</strong> Finance and entrepreneurship co-major at Miami
       University's Farmer School of Business, Class of 2028. Data sourcing and point-in-time
-      vintage handling, the mixed-frequency dynamic factor model, the out-of-sample backtest,
-      and the benchmarking against the Chicago and Atlanta Fed indices are all my own work.
+      vintage handling, the monthly dynamic factor model over a ragged-edge panel, the
+      out-of-sample backtest, and the benchmarking against the Chicago and Atlanta Fed
+      indices are all my own work.
       Open to finance and consulting internships.
       <span class="links">
         <a href="https://www.linkedin.com/in/owenfelaris/">LinkedIn</a> ·
@@ -437,7 +439,9 @@
 
     const perf = d.performance || {};
     const prov = [];
-    if (perf.factor) prov.push(perf.factor + "-factor replay (the live page ships the dynamic factor model)");
+    if (perf.factor) prov.push(/DFM/i.test(perf.factor)
+      ? "DFM replay, the same estimator this page ships"
+      : perf.factor + "-factor replay (the live page ships the dynamic factor model instead)");
     if (perf.generated) prov.push("regenerated " + perf.generated);
     if (perf.source) prov.push(/SYNTH/i.test(perf.source) ? "synthetic data" : "live FRED data");
     $("acc-prov").textContent = prov.length

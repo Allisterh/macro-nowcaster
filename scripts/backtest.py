@@ -18,13 +18,15 @@ import warnings
 from importlib import metadata
 from pathlib import Path
 
+import pandas as pd
+
 warnings.filterwarnings("ignore")
 
 from macro_nowcaster.backtest.pseudo_realtime import evaluate, replay
 from macro_nowcaster.config import get_settings
 from macro_nowcaster.data.fred_client import get_client
 from macro_nowcaster.features.transforms import standardized_panel
-from macro_nowcaster.models.dfm import fit_pca_factor
+from macro_nowcaster.models.dfm import fit_activity_factor, fit_pca_factor
 from macro_nowcaster.models.recession import fit_nowcast
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -58,7 +60,8 @@ def _packages() -> str:
     return ", ".join(out)
 
 
-def _provenance(mode: str, start: str, end: str, seed: str) -> list[str]:
+def _provenance(mode: str, start: str, end: str, seed: str, factor: str,
+                dfm_share: str) -> list[str]:
     novintage = os.environ.get("MN_NO_VINTAGE") == "1"
     vintage = ("release-lag proxy only (MN_NO_VINTAGE=1)" if novintage
                else "ALFRED vintages where available, release-lag proxy otherwise")
@@ -67,7 +70,7 @@ def _provenance(mode: str, start: str, end: str, seed: str) -> list[str]:
         f"data source:      {mode}",
         f"vintage mode:     {vintage if mode != 'SYNTHETIC' else 'synthetic client, lag proxy'}",
         f"replay window:    {start} to {end}",
-        "replay factor:    PCA (fit_pca_factor) - the live site ships the DFM",
+        f"replay factor:    {factor.upper()} {dfm_share}",
         "recognition lag:  4 months",
         f"seed:             {seed}",
         f"python:           {sys.version.split()[0]} on {platform.system().lower()}",
@@ -81,6 +84,8 @@ def main() -> None:
     ap.add_argument("--end", default=None)
     ap.add_argument("--out", default=str(ROOT / "RESULTS.md"),
                     help="where to write the report (default: RESULTS.md)")
+    ap.add_argument("--factor", choices=["pca", "dfm"], default="pca",
+                    help="estimator for the replay: pca is fast, dfm is what the site ships")
     args = ap.parse_args()
 
     settings = get_settings()
@@ -90,22 +95,37 @@ def main() -> None:
 
     print(f"data source: {mode}")
     print(f"replay window: {args.start} -> {end}")
+    print(f"replay factor: {args.factor}")
     print("running replay (this is the slow part)...")
 
     raw = {c: client.get_series(c) for c in settings.codes}
     raw = {k: v for k, v in raw.items() if v is not None and not v.empty}
     final_z = standardized_panel(raw, settings, mode="full")
-    final_factor = fit_pca_factor(final_z).factor
+    # the in-sample benchmark uses the same estimator, so the two AUCs compare
+    final_af = (fit_activity_factor(final_z, prefer="dfm") if args.factor == "dfm"
+                else fit_pca_factor(final_z))
+    final_factor = final_af.factor
     usrec = (client.get_series(settings.recession_flag).resample("ME").mean() > 0.5).astype(int)
 
     slope = final_z.get("T10Y3M")
     in_sample = fit_nowcast(final_factor, slope, usrec)
 
-    rt = replay(client, settings, start=args.start, end=end)
+    rt = replay(client, settings, start=args.start, end=end, factor=args.factor)
     metrics = evaluate(rt, final_factor, usrec.astype(float))
 
+    # how much of the replay really ran the requested estimator
+    methods = rt["factor_method"] if "factor_method" in rt else pd.Series(dtype=str)
+    dfm_share = ""
+    if args.factor == "dfm" and len(methods):
+        n_dfm = int((methods == "dfm").sum())
+        dfm_share = (f"(all {n_dfm} months converged)" if n_dfm == len(methods)
+                     else f"({n_dfm}/{len(methods)} months converged; the rest fell back to PCA)")
+    elif args.factor == "pca":
+        dfm_share = "(fit_pca_factor) - the live site ships the DFM"
+
     prov = _provenance(mode, args.start, end,
-                       "7 (SyntheticClient)" if mode == "SYNTHETIC" else "n/a (replay is deterministic)")
+                       "7 (SyntheticClient)" if mode == "SYNTHETIC" else "n/a (replay is deterministic)",
+                       args.factor, dfm_share)
     lines = [
         "=" * 60,
         "HONEST EVALUATION RESULTS",
@@ -113,6 +133,7 @@ def main() -> None:
         f"data source:                 {mode}",
         f"replay window:               {args.start} to {end}",
         f"replay months evaluated:     {metrics.get('n_periods', 'n/a')}",
+        f"replay factor:               {args.factor.upper()} {dfm_share}",
         "",
         f"in-sample recession AUC:     {in_sample.auc:.3f}",
         f"out-of-sample recession AUC: {metrics.get('recession_oos_auc', float('nan')):.3f}",
