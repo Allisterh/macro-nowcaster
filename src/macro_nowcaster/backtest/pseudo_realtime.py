@@ -64,11 +64,18 @@ def replay(
             slope = z.get("T10Y3M")
             try:
                 rm = fit_nowcast(af.factor, slope, usrec_lagged)
+                # fit_nowcast re-applies the model to the feature history, so this
+                # is the probability for pred_month, not for the last labelled row.
                 prob_now = float(rm.prob.iloc[-1])
             except Exception as exc:  # noqa: BLE001
                 log.debug("rt recession fit failed at %s: %s", asof.date(), str(exc)[:50])
         records.append(
-            {"asof": asof, "rt_composite": composite_now, "rt_recprob": prob_now}
+            {
+                "asof": asof,
+                "pred_month": af.factor.index[-1],  # month the nowcast describes
+                "rt_composite": composite_now,
+                "rt_recprob": prob_now,
+            }
         )
     return pd.DataFrame(records).set_index("asof")
 
@@ -86,6 +93,10 @@ def evaluate(realtime: pd.DataFrame, final_factor: pd.Series, final_usrec: pd.Se
         "composite_revision_mae": rev_mae,
     }
     rp = realtime["rt_recprob"].dropna()
+    if "pred_month" in realtime:
+        # score each probability against the month it actually describes
+        rp.index = realtime.loc[rp.index, "pred_month"]
+        rp = rp[~rp.index.duplicated(keep="last")]
     if len(rp) > 24:
         auc, brier = score_clf(rp, final_usrec.astype(float))
         out["recession_oos_auc"] = auc

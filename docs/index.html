@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Macro Nowcasting System</title>
-<meta name="description" content="Live GDP nowcast and recession probability from a point-in-time, mixed-frequency dynamic factor model over 29 FRED indicators.">
+<meta name="description" content="Live GDP nowcast and recession probability from a dynamic factor model over a monthly panel of 30 FRED indicators, with a point-in-time backtest.">
 <style>
   :root {
     color-scheme: light;
@@ -76,6 +76,13 @@
   figure { margin: 0 0 26px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
   iframe { display: block; width: 100%; height: 380px; border: 0; }
   figcaption { font-size: 13px; color: var(--muted); padding: 0 16px 14px; }
+  figure .band {
+    font-size: 13px; color: var(--ink-2); margin: 0; padding: 12px 16px 14px;
+    border-top: 1px solid var(--line); background: #fbfaf8;
+  }
+  figure .band:empty { display: none; }
+  .card .note.band { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .card .note.band:empty { display: none; }
 
   table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--surface);
           border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
@@ -115,13 +122,13 @@
   <header>
     <h1>Macro Nowcasting System</h1>
     <p class="sub" data-lang="tech">
-      Current-quarter US GDP growth and recession probability, estimated from 29 FRED
-      indicators with a mixed-frequency dynamic factor model.
+      Current-quarter US GDP growth and recession probability, estimated from 30 FRED
+      indicators with a dynamic factor model over a monthly panel.
       Rebuilt every day by GitHub Actions.
     </p>
     <p class="sub" data-lang="simple">
       How the US economy is doing right now: its growth rate and the odds of a recession,
-      read from 29 fast-moving data sources instead of waiting for the official numbers.
+      read from 30 fast-moving data sources instead of waiting for the official numbers.
       Rebuilt automatically every day.
     </p>
 
@@ -162,6 +169,7 @@
       <div class="label"><span data-lang="tech">Activity index</span><span data-lang="simple">Economic health score</span></div>
       <div class="value" id="comp">–</div>
       <div class="note" id="comp-note">standard deviations from trend</div>
+      <div class="note band" id="comp-band"></div>
     </div>
   </div>
 
@@ -171,43 +179,62 @@
     Official GDP prints four to eight weeks after a quarter closes. This system reads
     higher-frequency data (payrolls, jobless claims, the yield curve, credit spreads)
     to estimate current-quarter conditions in real time, the same class of problem the
-    Atlanta Fed's GDPNow and the Chicago Fed's CFNAI are built to solve. Every historical
-    estimate uses only data that had actually published at that point in time.
+    Atlanta Fed's GDPNow and the Chicago Fed's CFNAI are built to solve.
+  </p>
+  <p data-lang="tech">
+    <strong>What the charts below are.</strong> They are full-sample re-estimates on the
+    latest vintage of every series, standardized over the whole sample: the model refit
+    today, drawn back through history. They are not a real-time track record. The
+    point-in-time claim belongs to the backtest, which rebuilds each month from the data
+    vintages that existed then and is scored separately below.
   </p>
   <p style="margin-top:18px" data-lang="simple">
     Official economic growth numbers (GDP) come out weeks after each quarter ends. This
     tool reads faster-moving data, like hiring, jobless claims, and interest rates, to
-    estimate how the economy is doing right now instead of waiting. Every historical
-    estimate only uses data that was actually available at that point in time, the same
-    way an investor living through it would have seen it.
+    estimate how the economy is doing right now instead of waiting.
+  </p>
+  <p data-lang="simple">
+    <strong>What the charts below show.</strong> They are today's model drawn back over
+    history using the data as it looks now, not a record of what this tool said at the
+    time. The separate test further down is the one that replays history using only what
+    was known on each date.
   </p>
 
   <h2><span data-lang="tech">Composite activity index</span><span data-lang="simple">Economic health over time</span></h2>
   <figure>
     <iframe id="chart-activity" src="chart_activity.html" title="Composite activity index" loading="lazy"></iframe>
     <figcaption data-lang="tech">
-      One common factor extracted from 29 indicators by a Kalman-filtered dynamic factor
+      One common factor extracted from 30 indicators by a Kalman-filtered dynamic factor
       model, compared with the Chicago Fed's 85-series CFNAI-MA3. Above zero is
-      above-trend growth.
+      above-trend growth. Full-sample re-estimate on the current vintage, not the
+      real-time path.
     </figcaption>
     <figcaption data-lang="simple">
-      One overall score blended from 29 economic indicators (jobs, spending, credit and
+      One overall score blended from 30 economic indicators (jobs, spending, credit and
       more), next to the Chicago Fed's own official index. Above zero means the economy is
-      growing faster than its normal pace, below zero means slower.
+      growing faster than its normal pace, below zero means slower. This is today's model
+      applied to all of history, not what the tool said at the time.
     </figcaption>
+    <p class="band" id="band-tech" data-lang="tech"></p>
+    <p class="band" id="band-simple" data-lang="simple"></p>
   </figure>
 
   <h2><span data-lang="tech">GDP nowcast history</span><span data-lang="simple">Estimated growth vs what actually happened</span></h2>
   <figure>
     <iframe id="chart-gdp" src="chart_gdp.html" title="GDP nowcast history" loading="lazy"></iframe>
     <figcaption data-lang="tech">
-      The model's quarterly nowcast (MIDAS regression on the within-quarter factor path)
-      against realized GDP growth. The final point is the current, still-incomplete quarter.
+      <strong>In-sample fitted values, not a track record.</strong> The MIDAS regression
+      is estimated on the whole sample, including every quarter drawn here, so the blue
+      line is the model's fit to GDP rather than a series of nowcasts made at the time.
+      The GDP nowcast has no out-of-sample evaluation yet. The final point is the current,
+      still-incomplete quarter.
     </figcaption>
     <figcaption data-lang="simple">
-      The tool's estimate for each quarter (blue line) against the growth that was actually
-      reported later (orange bars). The last point is the quarter we are in now, which has
-      not finished yet.
+      <strong>This is the model fitted to the past, not a scorecard.</strong> The blue
+      line is what the formula produces for each quarter after being tuned on all of those
+      same quarters, so it is bound to look close to the orange bars. It has not yet been
+      tested on quarters it never saw. The last point is the quarter we are in now, which
+      has not finished yet.
     </figcaption>
   </figure>
 
@@ -239,16 +266,21 @@
     </tr></thead>
     <tbody id="stats"><tr><td class="skeleton">Loading…</td><td class="num"></td></tr></tbody>
   </table>
+  <p class="sub" style="margin-top:10px" id="acc-prov"></p>
   <p class="sub" style="margin-top:10px" data-lang="tech">
     Out-of-sample figures come from a pseudo-real-time replay that rebuilds the nowcast
     month by month from data vintages, so they are the honest numbers rather than the
-    in-sample ones. Benchmarks are pulled live from FRED on each run.
+    in-sample ones. They score the composite and the recession probability; the GDP
+    nowcast is not evaluated by them. The replay covers three recessions (2001, 2008-09,
+    2020), so the AUC carries a wide confidence interval whatever the third decimal says.
+    Benchmarks are pulled live from FRED on each run.
   </p>
   <p class="sub" style="margin-top:10px" data-lang="simple">
     These scores come from re-running the tool month by month through history, each time
     showing it only the data that existed back then, and checking it against what actually
-    happened. The comparisons to well-known Federal Reserve indexes are pulled fresh on
-    every run, so it is held to a real standard rather than graded on its own curve.
+    happened. They grade the health score and the recession odds, not the growth estimate.
+    Only three recessions happened in the test period, so these numbers are rough. The
+    comparisons to well-known Federal Reserve indexes are pulled fresh on every run.
   </p>
 
   <footer>
@@ -299,6 +331,8 @@
      "The Atlanta Fed's official estimate, latest reading", "%"],
     ["gdp_nowcast_vs_gdpnow_gap", "bench", "This nowcast minus GDPNow",
      "This tool's estimate minus the official one", " pp"],
+    ["revision_mae", "perf", "Average real-time revision to the composite (sd)",
+     "How much the score typically moves once data is revised (sd)", ""],
     ["window", "perf", "Backtest replay window", "Tested over", ""],
   ];
 
@@ -340,9 +374,12 @@
 
   function render(d) {
     $("gdp").textContent = (d.gdp_nowcast >= 0 ? "+" : "") + num(d.gdp_nowcast, 1) + "%";
+    // The band is the regression's in-sample residual SE, not a calibrated
+    // interval - say so rather than letting it read as a coverage statement.
     $("gdp-note").textContent = plain
       ? "growth pace this quarter · give or take " + num(d.gdp_nowcast_std, 1)
-      : "annualized q/q · ± " + num(d.gdp_nowcast_std, 1) + " pp";
+        + ", a rough band"
+      : "annualized q/q · ± " + num(d.gdp_nowcast_std, 1) + " pp in-sample SE";
     $("rec").textContent = pct(d.recession_prob);
     $("rec-note").textContent = plain
       ? "right now · " + pct(d.recession_prob_12m) + " chance within 12 months"
@@ -373,6 +410,39 @@
       "<tr><td>" + r[0] + "</td><td class='num'>" +
       (typeof r[1] === "number" ? r[1].toFixed(r[2] === "" ? 3 : 2) : r[1]) + r[2] +
       "</td></tr>").join("");
+
+    // Item: the revision band. The replay measures how far the real-time composite
+    // sits from the final one; a reading smaller than that gap is not a signal.
+    const mae = (d.performance || {}).revision_mae;
+    if (mae != null && d.composite != null) {
+      const inside = Math.abs(d.composite) < mae;
+      $("comp-band").textContent = "\u00b1 " + mae.toFixed(2) + " sd typical revision";
+      $("band-tech").textContent = inside
+        ? "Read this against its own revision band. The pseudo-real-time replay puts the "
+          + "average gap between the real-time composite and the final one at "
+          + mae.toFixed(2) + " sd; the current reading of " + sd(d.composite)
+          + " sd is well inside that, so it is indistinguishable from trend rather than a signal."
+        : "The current reading of " + sd(d.composite) + " sd is larger than the "
+          + mae.toFixed(2) + " sd average gap between the real-time and final composite "
+          + "measured in the replay, so it survives typical revision noise.";
+      $("band-simple").textContent = inside
+        ? "How much should you trust this exact number? When old data gets revised, this "
+          + "score typically moves by about " + mae.toFixed(2)
+          + " points. Today's reading is much smaller than that, so the honest reading is "
+          + "\u201cthe economy is running at its normal pace\u201d, not a precise figure."
+        : "When old data gets revised, this score typically moves by about "
+          + mae.toFixed(2) + " points. Today's reading is bigger than that, so the signal "
+          + "holds up even after revisions.";
+    }
+
+    const perf = d.performance || {};
+    const prov = [];
+    if (perf.factor) prov.push(perf.factor + "-factor replay (the live page ships the dynamic factor model)");
+    if (perf.generated) prov.push("regenerated " + perf.generated);
+    if (perf.source) prov.push(/SYNTH/i.test(perf.source) ? "synthetic data" : "live FRED data");
+    $("acc-prov").textContent = prov.length
+      ? (plain ? "Where these came from: " : "Provenance: ") + prov.join(" \u00b7 ") + "."
+      : "";
 
     if (d.data_source !== "fred") {
       $("notice").innerHTML = "<div class='notice'>" + (plain

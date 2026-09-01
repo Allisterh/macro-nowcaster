@@ -16,10 +16,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from macro_nowcaster.pipeline import build_artifact
-from macro_nowcaster.llm.memo_agent import MemoContext, generate_memo
+from macro_nowcaster.benchmarks import compare, fetch_benchmarks
 from macro_nowcaster.data.fred_client import get_client
-from macro_nowcaster.benchmarks import fetch_benchmarks, compare
+from macro_nowcaster.llm.memo_agent import MemoContext, generate_memo
+from macro_nowcaster.pipeline import build_artifact
 
 OUT = Path(__file__).resolve().parents[1] / "app" / "snapshot.json"
 
@@ -38,7 +38,13 @@ def _clean(values):
 
 def _read_performance() -> dict:
     """Pull the headline backtest numbers out of RESULTS.md so the dashboard can
-    show them without re-running the slow replay."""
+    show them without re-running the slow replay.
+
+    Also returns the provenance the numbers have to be read with: which factor the
+    replay used (PCA, where the live site ships the DFM) and when RESULTS.md was
+    last regenerated. Both are displayed, because an accuracy figure from another
+    estimator and another month is not the accuracy of what is on screen.
+    """
     p = Path(__file__).resolve().parents[1] / "RESULTS.md"
     if not p.exists():
         return {}
@@ -53,10 +59,18 @@ def _read_performance() -> dict:
         "is_auc": grab("in-sample recession AUC"),
         "brier": grab("OOS Brier score"),
         "rt_final_corr": grab("real-time vs final corr"),
+        "revision_mae": grab("composite revision MAE"),
     }
     wm = re.search(r"replay window:\s*(\S+)\s+to\s+(\S+)", txt)
     if wm:
         out["window"] = f"{wm.group(1)} to {wm.group(2)}"
+    fm = re.search(r"replay factor:\s*(\S+)", txt)
+    if fm:
+        out["factor"] = fm.group(1)
+    gm = re.search(r"Generated\s+(\d{4}-\d{2}-\d{2})\s+on\s+([A-Z ]+)\s+data", txt)
+    if gm:
+        out["generated"] = gm.group(1)
+        out["source"] = gm.group(2).strip()
     return {k: v for k, v in out.items() if v is not None}
 
 

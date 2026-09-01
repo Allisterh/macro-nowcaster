@@ -10,16 +10,17 @@ the refreshed page.
 [![CI](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/ci.yml/badge.svg)](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/ci.yml)
 [![Update site](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/update.yml/badge.svg)](https://github.com/felariop-jpg/macro-nowcaster/actions/workflows/update.yml)  ·  [Streamlit version](https://felaris-macro-nowcaster.streamlit.app) (fuller dashboard, slower to wake)
 
-A point-in-time, mixed-frequency macroeconomic nowcasting platform. It aggregates
-30+ FRED indicators into a composite activity index using a dynamic factor model,
+A point-in-time macroeconomic nowcasting platform over a mixed-frequency panel. It aggregates
+30 FRED indicators into a composite activity index using a dynamic factor model,
 nowcasts GDP, tracks recession probability (coincident and 12-month-ahead), labels
-the macro regime, cross-references the Federal Reserve's own language against the
-quantitative signal, and serves all of it through a versioned API and a dashboard.
+the macro regime, and serves all of it through a versioned API and a static
+dashboard rebuilt daily. (A Fed-text retrieval layer exists in the repo but is not
+wired into the pipeline - see Experimental modules below.)
 
 This is the production rebuild of a prototype notebook. The emphasis is on the
-three things that separate elite quant work from a portfolio toy: it is **live**
-(self-refreshing), **adversarially correct** (point-in-time, honestly out of
-sample), and **tied to a decision** (a backtested asset-allocation overlay).
+two things that separate serious macro work from a portfolio toy: it is **live**
+(self-refreshing) and **adversarially correct** (point-in-time vintages, honestly
+out of sample, with the weaker number reported).
 
 ---
 
@@ -33,19 +34,32 @@ sample), and **tied to a decision** (a backtested asset-allocation overlay).
    nowcast as it would have been produced each month and scores it against what
    actually happened. The in-sample recession AUC is near perfect; the honest
    out-of-sample AUC is materially lower, and the project reports the lower number.
-3. **A proper state space model.** The composite is a mixed-frequency dynamic
-   factor model (Kalman filter, EM) that handles ragged edges natively, not PCA on
-   zero-filled data.
-4. **News decomposition.** When a release lands, the system attributes how much the
-   nowcast moved and to which indicator (a flow of incoming information, not a
-   static snapshot).
-5. **A decision, not a chart.** A macro-state allocation overlay translates the
-   signal into an equity weight and is backtested net of costs against buy-and-hold.
-6. **A Fed-text RAG layer.** Retrieval over FOMC statements and minutes plus a Claude
-   call flags where the central bank's language diverges from the data.
-7. **Production engineering.** Layered package, DuckDB point-in-time store, FastAPI
-   service, Streamlit frontend, data-validation gates, drift and calibration
-   monitoring, unit tests, CI, Docker, and a scheduled self-refresh.
+3. **A proper state space model.** The composite is a dynamic factor model
+   (Kalman filter, EM) that handles the ragged edge natively rather than PCA on
+   zero-filled data. Daily and weekly series are averaged to month-end before
+   estimation, so the state space itself is monthly: "mixed frequency" here means
+   the inputs arrive at different frequencies and on a ragged edge, not that
+   quarterly series sit inside the model the way `DynamicFactorMQ` allows.
+4. **Production engineering.** Layered package, FastAPI service, data-validation
+   gates, drift monitoring, unit tests, CI, Docker, and a scheduled self-refresh
+   that publishes the static site.
+
+---
+
+## Experimental modules (not wired into the pipeline)
+
+These are implemented and unit-tested, but **nothing in the live pipeline, the API
+or the published site calls them**, and they produce no output you can see on the
+dashboard. They are here as working sketches, not as system capabilities. The code
+stays in the repo; the claims do not.
+
+| Module | State |
+|--------|-------|
+| `models/regime.py:news_decomposition` | Attributes a nowcast revision to the cells that changed, by leave-one-out refitting. Never called outside tests, so no release attribution is published. It is also not the Kalman-filter news equation the DFM would support. |
+| `backtest/allocation.py` | Maps the macro state to an equity weight and backtests it net of costs. Exercised only on random returns in a unit test: no equity series is configured and no backtest result exists in this repo. |
+| `llm/fed_rag.py` | TF-IDF retrieval over Fed text plus a Claude call. There is no corpus and no fetcher, so it has never run against real FOMC documents. |
+| `monitoring/drift.py:calibration_report` | Reliability table for the recession probabilities. Implemented, never called. |
+| `data/store.py:PointInTimeStore` | DuckDB vintage store. The pipeline and the replay both read vintages straight from the ALFRED client instead, so this sits outside the data path. |
 
 ---
 
@@ -53,24 +67,26 @@ sample), and **tied to a decision** (a backtested asset-allocation overlay).
 
 ```mermaid
 flowchart TD
-    A[FRED / ALFRED client<br/>live + synthetic fallback] -->|vintages| B[(DuckDB<br/>point-in-time store)]
-    A --> V[Validation gates<br/>schema + freshness]
+    A[FRED / ALFRED client<br/>live + synthetic fallback] --> V[Validation gates<br/>schema + freshness]
     V --> F[Feature layer<br/>align + transform + z-score]
     F --> D[Dynamic Factor Model<br/>Kalman + EM<br/>PCA fallback]
     D --> C[Composite activity index]
     C --> R[Recession probit<br/>nowcast + 12m leading]
     C --> G[GDP nowcast<br/>bridge + MIDAS]
     C --> H[HMM regime labels]
-    C --> N[News decomposition]
-    C --> AL[Allocation overlay<br/>backtest vs buy-and-hold]
-    C --> RAG[Fed-text RAG<br/>divergence vs Claude]
-    B --> PR[Pseudo-real-time replay<br/>honest OOS evaluation]
-    R & G & H & N & AL --> ART[(Artifact)]
+    A -->|vintages| PR[Pseudo-real-time replay<br/>honest OOS evaluation]
+    R & G & H --> ART[(Artifact)]
     ART --> API[FastAPI service]
-    RAG --> API
-    API --> UI[Streamlit dashboard]
-    MON[Drift + calibration monitor] --> API
-    SCHED[Scheduled flow / GitHub Action] -->|weekly| A
+    ART --> SITE[Static GitHub Pages site<br/>docs/]
+    MON[Drift monitor] --> ART
+    SCHED[GitHub Action] -->|daily| A
+    subgraph EXP [experimental - not called by the pipeline]
+      N[News decomposition]
+      AL[Allocation overlay]
+      RAG[Fed-text RAG]
+      CAL[Calibration report]
+      DB[(DuckDB PIT store)]
+    end
 ```
 
 Layout:
@@ -80,10 +96,10 @@ src/macro_nowcaster/
   config.py            settings + indicator universe from config/indicators.yaml
   data/                fred_client (live + ALFRED + synthetic), store (DuckDB PIT), validation
   features/            frequency align, transforms, point-in-time z-scores
-  models/              dfm (Kalman), midas (GDP), recession (probit), regime (HMM), news
-  backtest/            pseudo_realtime (honest OOS), allocation (overlay backtest)
-  llm/                 fed_rag (RAG vs Fed text), memo_agent (research memo)
-  monitoring/          drift (PSI), calibration
+  models/              dfm (Kalman), midas (GDP), recession (probit), regime (HMM + news)
+  backtest/            pseudo_realtime (honest OOS); allocation (experimental)
+  llm/                 memo_agent (research memo); fed_rag (experimental, no corpus)
+  monitoring/          drift (PSI); calibration (experimental, never called)
   pipeline.py          orchestration -> artifact
   api/main.py          FastAPI service
 generate_report.py     builds the static site -> docs/ (what GitHub Pages serves)
@@ -137,9 +153,10 @@ the whole thing is testable and demoable offline.
 
 Honesty is part of the engineering here.
 
-- **Fully working offline (synthetic data):** the entire pipeline, DFM, recession
-  and GDP models, regimes, news decomposition, point-in-time replay, allocation
-  backtest, monitoring, API, frontend, and the RAG retrieval step.
+- **Fully working offline (synthetic data):** the entire live pipeline - DFM,
+  recession and GDP models, regimes, point-in-time replay, drift monitoring, API,
+  and the static site build. The experimental modules listed above also run, but
+  only from their unit tests.
 - **Needs `FRED_API_KEY`:** live and ALFRED-vintage data. The client uses real
   ALFRED vintages when available and falls back to a publication-lag proxy.
 - **Needs `ANTHROPIC_API_KEY`:** the written Fed-divergence analysis and the
@@ -174,6 +191,13 @@ still regenerates it by hand if you ever want it current.
 
 - The live snapshot standardizes over the full sample for interpretability; the
   pseudo-real-time backtest uses expanding-window standardization to stay honest.
+  This means the charts on the site are full-sample re-estimates, **not** a
+  real-time track record - the point-in-time claim belongs to the backtest.
+- **The GDP nowcast has no out-of-sample evaluation yet.** The backtest scores the
+  composite and the recession probability only, and the ± band on the GDP figure is
+  the regression's in-sample residual standard error, not a calibrated interval.
+- The replay window contains three recessions (2001, 2008-09, 2020), so the
+  out-of-sample AUC carries a wide confidence interval regardless of its decimals.
 - The replay uses PCA rather than the DFM for speed across hundreds of refits; this
   is a cost-versus-fidelity choice, not a correctness one.
 - ISM/PMI surveys are excluded because FRED removed them for licensing reasons.

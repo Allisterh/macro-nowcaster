@@ -160,7 +160,8 @@ st.info(
 if generated_at:
     st.caption(
         f"Data as of {s['as_of']}  ·  snapshot built {generated_at}  ·  "
-        f"refreshes daily via GitHub Actions."
+        f"this snapshot is frozen; the maintained dashboard is the static site "
+        f"at felariop-jpg.github.io/macro-nowcaster, rebuilt daily."
     )
 
 with st.expander(txt("How this works", "Methodology & model details")):
@@ -169,7 +170,7 @@ with st.expander(txt("How this works", "Methodology & model details")):
             "- **No peeking at the future.** Every historical estimate only uses data that "
             "was actually available at that point in time, the same way an investor living "
             "through it would have seen it.\n"
-            "- **One score from many indicators.** 29 economic indicators (jobs, spending, "
+            "- **One score from many indicators.** 30 economic indicators (jobs, spending, "
             "credit, and more) are blended into a single number that captures the overall "
             "trend.\n"
             "- **Handles data that arrives on different schedules.** Some data comes in "
@@ -185,7 +186,7 @@ with st.expander(txt("How this works", "Methodology & model details")):
             "publication-lag proxy for non-revised daily series.\n"
             "- **Composite.** A single common factor from a mixed-frequency dynamic factor model "
             "(statsmodels DynamicFactorMQ, Kalman filter and EM), with a PCA fallback if the DFM "
-            "fails to converge. It explains about 41% of the variance across 29 indicators, which "
+            "fails to converge. It explains about 41% of the variance across 30 indicators, which "
             "is typical for one factor on a broad macro panel.\n"
             "- **Mixed frequencies.** Daily series (yield curve, VIX, spreads), weekly claims, and "
             "monthly activity series are aligned to month-end; the Kalman filter handles the ragged "
@@ -209,7 +210,7 @@ with st.expander(txt("What this can't do", "Limitations - what this model is not
             "range, not an exact number.",
             "- It is a **coincident, short-horizon nowcast**, not a structural or long-range "
             "forecasting model.\n"
-            "- The panel is **29 series**, far smaller than CFNAI's 85, so it diverges from the "
+            "- The panel is **30 series**, far smaller than CFNAI's 85, so it diverges from the "
             "official index and is noisier.\n"
             "- A real-time recession call is **noisier than a single point estimate suggests**; "
             "the probability path matters more than any one month's number.\n"
@@ -287,7 +288,7 @@ if bench_stats:
         "This tool uses fewer data sources than the official Chicago Fed index, so an "
         "exact match isn't expected, just a similar overall trend. Benchmarks are "
         "pulled live from FRED each time the page refreshes.",
-        "My composite is a 29-series dynamic factor model; CFNAI-MA3 is the "
+        "My composite is a 30-series dynamic factor model; CFNAI-MA3 is the "
         "Chicago Fed's 85-series PCA, so moderate correlation is expected. "
         "Benchmarks are pulled live from FRED at snapshot build time.",
     ))

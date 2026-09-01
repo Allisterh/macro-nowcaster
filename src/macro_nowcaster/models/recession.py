@@ -55,15 +55,31 @@ def _score(prob: pd.Series, y: pd.Series) -> tuple[float, float]:
 
 
 def fit_nowcast(factor: pd.Series, slope: pd.Series | None, usrec: pd.Series) -> RecessionModel:
+    """Coincident probit. ``prob`` runs to the last month of *features*, not labels.
+
+    USREC publishes with a lag, so an inner join with the label ends months before
+    the panel does. Reading the last fitted value off that join reports a stale
+    month as "now" - up to the label lag live, and up to the recognition lag in the
+    pseudo-real-time replay. The fitted model is therefore re-applied to the full
+    feature history, exactly as ``fit_leading`` does, so the last element of
+    ``prob`` is the probability for the most recent month the panel covers. Scores
+    are still computed on the labelled subset the model was estimated on.
+    """
     parts = {"composite": factor}
     if slope is not None:
         parts["slope"] = slope
     df = pd.concat(list(parts.values()) + [usrec.rename("rec")], axis=1).dropna()
     df.columns = list(parts.keys()) + ["rec"]
     feats = list(parts.keys())
-    kind, model, prob = _fit(df[feats], df["rec"])
-    auc, brier = _score(prob, df["rec"])
-    return RecessionModel(kind, model, prob, auc, brier, feats)
+    kind, model, prob_fit = _fit(df[feats], df["rec"])
+    auc, brier = _score(prob_fit, df["rec"])
+    rm = RecessionModel(kind, model, prob_fit, auc, brier, feats)
+
+    X = pd.concat(list(parts.values()), axis=1).dropna()
+    X.columns = feats
+    if not X.empty:
+        rm.prob = rm.predict(X)
+    return rm
 
 
 def fit_leading(slope: pd.Series, usrec: pd.Series, lead_months: int = 12) -> RecessionModel:

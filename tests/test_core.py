@@ -119,6 +119,30 @@ def test_recession_models(zpanel, raw, settings, client):
     assert 0.0 <= lead.prob.iloc[-1] <= 1.0
 
 
+def test_nowcast_prob_is_dated_to_the_asof_month(zpanel, raw, settings, client):
+    """The coincident probability must describe the last month of the panel.
+
+    USREC lags the panel, so an inner join with the label ends earlier; taking the
+    last fitted value off that join reports a stale month as "now".
+    """
+    from macro_nowcaster.features.transforms import build_feature_panel
+
+    af = fit_pca_factor(zpanel)
+    feat = build_feature_panel(raw, settings)
+    usrec = (client.get_series("USREC").resample("ME").mean() > 0.5).astype(int)
+    asof = af.factor.dropna().index[-1]
+
+    # labels stop four months before the as-of month, as in the replay
+    lagged = usrec.iloc[: len(usrec) - 4]
+    assert lagged.index[-1] < asof
+
+    now = fit_nowcast(af.factor, feat["T10Y3M"], lagged)
+    assert now.prob.index[-1] == asof
+    assert 0.0 <= float(now.prob.iloc[-1]) <= 1.0
+    # scores still come from the labelled sample the model was estimated on
+    assert 0.0 <= now.auc <= 1.0
+
+
 # ---- regimes -------------------------------------------------------------- #
 def test_regimes(zpanel):
     af = fit_pca_factor(zpanel)
